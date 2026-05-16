@@ -54,13 +54,12 @@ const userSchema = new mongoose.Schema(
 );
 
 // --- MIDDLEWARE: Hash password before saving to the database ---
-userSchema.pre('save', async function (next) {
+userSchema.pre('save', async function () {
     // Only run this function if password was actually modified
-    if (!this.isModified('password')) return next();
+    if (!this.isModified('password')) return;
 
     // Hash the password with cost of 12
     this.password = await bcrypt.hash(this.password, 12);
-    next();
 });
 
 // --- INSTANCE METHOD: Verify password during login ---

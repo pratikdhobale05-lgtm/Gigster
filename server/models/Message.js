@@ -35,12 +35,11 @@ const messageSchema = new mongoose.Schema(
 
 // --- MIDDLEWARE: Always fetch the sender's name and avatar ---
 // When we load chat history, we want to show who said what without doing extra database queries.
-messageSchema.pre(/^find/, function (next) {
+messageSchema.pre(/^find/, function () {
     this.populate({
         path: 'senderId',
         select: 'name profile.avatarUrl', // Only grab what we need for the UI
     });
-    next();
 });
 
 const Message = mongoose.model('Message', messageSchema);

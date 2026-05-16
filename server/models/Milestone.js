@@ -46,11 +46,11 @@ const milestoneSchema = new mongoose.Schema(
 
 // --- MIDDLEWARE: Prevent modification of paid milestones ---
 // This is a safety net. Once a milestone is paid, no one should be able to alter its amount or status.
-milestoneSchema.pre('save', function (next) {
-    if (!this.isNew && this.status === 'paid' && this.isModified()) {
-        return next(new Error('Cannot modify a milestone that has already been paid out.'));
+milestoneSchema.pre('save', function () {
+    // Prevent edits to paid milestones
+    if (this.isModified() && this.status === 'paid' && !this.isNew) {
+        throw new Error('Cannot modify a milestone that has already been paid out.');
     }
-    next();
 });
 
 const Milestone = mongoose.model('Milestone', milestoneSchema);

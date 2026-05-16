@@ -14,7 +14,9 @@ const authRoutes = require('./routes/authRoutes');
 const projectRoutes = require('./routes/projectRoutes');
 const escrowRoutes = require('./routes/escrowRoutes');
 const messageRoutes = require('./routes/messageRoutes');
-const chatSocket = require('./sockets/chat'); // Imported the socket logic
+const chatSocket = require('./sockets/chat');
+const proposalRoutes = require('./routes/proposalRoutes'); 
+const reviewRoutes = require('./routes/reviewRoutes');// Imported the socket logic
 
 // 3. Initialize Express
 const app = express();
@@ -41,8 +43,10 @@ app.use(express.json()); // Parses incoming JSON data in the request body
 // 6. Mount the Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/proposals', proposalRoutes);
 app.use('/api/escrow', escrowRoutes); // Webhook is now safely inside here!
 app.use('/api/messages', messageRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // 7. Basic Global Error Handler
 app.use((err, req, res, next) => {

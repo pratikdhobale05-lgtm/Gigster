@@ -1,134 +1,79 @@
-const Razorpay = require('razorpay');
-const crypto = require('crypto');
-const Milestone = require('../models/Milestone');
 const Project = require('../models/Project');
+const Escrow = require('../models/Escrow');
 
-// Initialize Razorpay
-const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
-
-// --- 1. FUND A MILESTONE (Generate Razorpay Order) ---
+// 1. Client funds the milestone
 exports.fundMilestone = async (req, res) => {
     try {
-        const milestone = await Milestone.findById(req.params.id);
+        const projectId = req.params.id;
+        const project = await Project.findById(projectId);
 
-        if (!milestone) return res.status(404).json({ status: 'fail', message: 'Milestone not found' });
-        if (milestone.status !== 'pending') return res.status(400).json({ status: 'fail', message: 'Milestone is not pending' });
+        if (!project) return res.status(404).json({ message: 'Project not found' });
+        if (!project.hiredFreelancer) return res.status(400).json({ message: 'Must hire a freelancer first' });
 
-        const project = await Project.findById(milestone.projectId);
-        if (project.clientId.toString() !== req.user._id.toString()) {
-            return res.status(403).json({ status: 'fail', message: 'Unauthorized' });
-        }
-
-        // Create a Razorpay Order
-        // Amounts in Razorpay are in paise (smallest currency unit). Multiply by 100 for INR.
-        const options = {
-            amount: milestone.amount * 100,
-            currency: "INR", // Change to USD if needed, Razorpay supports international
-            receipt: `receipt_${milestone._id}`,
-            notes: {
-                milestoneId: milestone._id.toString(),
-                projectId: project._id.toString()
-            }
-        };
-
-        const order = await razorpay.orders.create(options);
-
-        // Save the order ID (replaces paymentIntentId)
-        milestone.paymentIntentId = order.id;
-        await milestone.save();
-
-        res.status(200).json({
-            status: 'success',
-            data: {
-                orderId: order.id,
-                amount: order.amount,
-                currency: order.currency
-            }
+        // Create the Escrow record (locking the money)
+        const escrow = await Escrow.create({
+            project: project._id,
+            client: req.user._id,
+            freelancer: project.hiredFreelancer,
+            amount: project.budget,
+            status: 'funded'
         });
-    } catch (err) {
-        res.status(400).json({ status: 'fail', message: err.message });
+
+        // Update the project status
+        project.status = 'funded';
+        await project.save();
+
+        res.status(200).json({ success: true, message: 'Milestone funded securely!', data: escrow });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error funding milestone', error: error.message });
     }
 };
 
-// --- 2. RAZORPAY WEBHOOK (Automated System) ---
-exports.razorpayWebhook = async (req, res) => {
-    try {
-        // Razorpay sends the signature in the headers
-        const signature = req.headers['x-razorpay-signature'];
-
-        // We must hash the raw request body with our Webhook Secret to verify it
-        const expectedSignature = crypto
-            .createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET)
-            .update(JSON.stringify(req.body))
-            .digest('hex');
-
-        if (expectedSignature !== signature) {
-            return res.status(400).json({ status: 'fail', message: 'Invalid webhook signature' });
-        }
-
-        // Process the event
-        const event = req.body.event;
-
-        if (event === 'payment.captured' || event === 'order.paid') {
-            // The notes object we passed during order creation comes back in the webhook payload
-            const milestoneId = req.body.payload.payment.entity.notes.milestoneId;
-
-            const milestone = await Milestone.findById(milestoneId);
-            if (milestone) {
-                milestone.status = 'funded';
-                await milestone.save();
-                console.log(`💰 Milestone ${milestone._id} successfully funded via Razorpay!`);
-            }
-        }
-
-        res.status(200).json({ status: 'ok' });
-    } catch (err) {
-        res.status(400).json({ status: 'fail', message: err.message });
-    }
-};
-
-// --- 3. SUBMIT WORK (Freelancer) ---
-// (This remains EXACTLY the same as before, no payment logic here)
+// 2. Freelancer submits the completed work
 exports.submitWork = async (req, res) => {
     try {
-        const milestone = await Milestone.findById(req.params.id);
-        if (!milestone) return res.status(404).json({ status: 'fail', message: 'Milestone not found' });
-        if (milestone.status !== 'funded') return res.status(400).json({ status: 'fail', message: 'Milestone is not currently funded' });
+        const projectId = req.params.id;
+        const project = await Project.findById(projectId);
 
-        milestone.status = 'submitted';
-        milestone.submittedAt = Date.now();
-        await milestone.save();
+        if (!project) return res.status(404).json({ message: 'Project not found' });
 
-        res.status(200).json({ status: 'success', message: 'Work submitted!' });
-    } catch (err) {
-        res.status(400).json({ status: 'fail', message: err.message });
+        // Security check: Only the hired freelancer can submit work
+        if (project.hiredFreelancer.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ message: 'Only the hired freelancer can submit work' });
+        }
+
+        // Update project status to show it is ready for client review
+        project.status = 'under_review';
+        await project.save();
+
+        res.status(200).json({ success: true, message: 'Work submitted for review!' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error submitting work', error: error.message });
     }
 };
 
-// --- 4. APPROVE & RELEASE FUNDS (Client) ---
+// 3. Client approves the work (Releasing funds)
 exports.approveWork = async (req, res) => {
     try {
-        const milestone = await Milestone.findById(req.params.id);
-        if (!milestone) return res.status(404).json({ status: 'fail', message: 'Milestone not found' });
-        if (milestone.status !== 'submitted') return res.status(400).json({ status: 'fail', message: 'No work has been submitted yet' });
+        const projectId = req.params.id;
 
-        const project = await Project.findById(milestone.projectId);
-        if (project.clientId.toString() !== req.user._id.toString()) {
-            return res.status(403).json({ status: 'fail', message: 'Unauthorized' });
-        }
+        // Find the escrow record tied to this project
+        const escrow = await Escrow.findOne({ project: projectId, status: 'funded' });
+        if (!escrow) return res.status(404).json({ message: 'No active funded escrow found for this project' });
 
-        // --- RAZORPAY ROUTE (TRANSFERS) GOES HERE ---
-        // In production, you use Razorpay Route to push money to the freelancer's linked account
-        // Example: await razorpay.transfers.create({ account: freelancerRazorpayId, amount: milestone.amount * 100, currency: "INR" });
+        // Update the Escrow to release the money to the Freelancer
+        escrow.status = 'released';
+        await escrow.save();
 
-        milestone.status = 'paid';
-        await milestone.save();
+        // Update the project to completely finished
+        const project = await Project.findById(projectId);
+        project.status = 'completed';
+        await project.save();
 
-        res.status(200).json({ status: 'success', message: 'Funds released via Razorpay Route!' });
-    } catch (err) {
-        res.status(400).json({ status: 'fail', message: err.message });
+        // (Optional: Here is where you would update the Freelancer's "Wallet" balance in a real app)
+
+        res.status(200).json({ success: true, message: 'Work approved and funds released!' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error approving work', error: error.message });
     }
 };

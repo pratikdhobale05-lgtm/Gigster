@@ -74,7 +74,7 @@ const projectSchema = new mongoose.Schema(
 
 // --- MIDDLEWARE: Populate user data on query ---
 // Whenever we query a project, automatically fetch the client's name and the hired freelancer's name
-projectSchema.pre(/^find/, function (next) {
+projectSchema.pre(/^find/, function () {
     this.populate({
         path: 'clientId',
         select: 'name email profile.avatarUrl',
@@ -82,8 +82,6 @@ projectSchema.pre(/^find/, function (next) {
         path: 'freelancerId',
         select: 'name email profile.avatarUrl',
     });
-
-    next();
 });
 
 const Project = mongoose.model('Project', projectSchema);
