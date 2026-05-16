@@ -9,29 +9,42 @@ const { Server } = require('socket.io');
 // 1. Load environment variables
 dotenv.config();
 
-// 2. Import Route Files
+// 2. Import Route Files & Sockets
 const authRoutes = require('./routes/authRoutes');
 const projectRoutes = require('./routes/projectRoutes');
 const escrowRoutes = require('./routes/escrowRoutes');
-const escrowController = require('./controllers/escrowController');
+const messageRoutes = require('./routes/messageRoutes');
+const chatSocket = require('./sockets/chat'); // Imported the socket logic
 
 // 3. Initialize Express
 const app = express();
 
-// 4. Global Middleware
+// --- 4. UPGRADE TO HTTP SERVER FOR SOCKETS ---
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
+
+// Make 'io' accessible to our standard Express controllers
+app.set('io', io);
+
+// Attach our chat room logic to the socket server
+chatSocket(io);
+
+// 5. Global Middleware
 app.use(cors()); // Allows your React frontend to talk to this API
-app.post(
-    '/api/escrow/webhook',
-    express.raw({ type: 'application/json' }),
-    escrowController.razorpayWebhook
-);
 app.use(express.json()); // Parses incoming JSON data in the request body
 
-// 5. Mount the Routes
+// 6. Mount the Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
-app.use('/api/escrow', escrowRoutes);
-// 6. Basic Global Error Handler
+app.use('/api/escrow', escrowRoutes); // Webhook is now safely inside here!
+app.use('/api/messages', messageRoutes);
+
+// 7. Basic Global Error Handler
 app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(err.status || 500).json({
@@ -40,15 +53,17 @@ app.use((err, req, res, next) => {
     });
 });
 
-// 7. Database Connection & Server Start
+// 8. Database Connection & Server Start
 const PORT = process.env.PORT || 5000;
 
 mongoose
     .connect(process.env.MONGO_URI)
     .then(() => {
         console.log('✅ Connected to MongoDB successfully');
-        app.listen(PORT, () => {
-            console.log(`🚀 Server is running on port ${PORT}`);
+
+        // 🚨 CRITICAL FIX: Changed app.listen to server.listen 🚨
+        server.listen(PORT, () => {
+            console.log(`🚀 Server & Sockets are running on port ${PORT}`);
         });
     })
     .catch((err) => {
