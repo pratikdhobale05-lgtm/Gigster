@@ -28,4 +28,10 @@ router.patch(
     escrowController.approveWork
 );
 
+// 4. Either party raises a dispute
+router.post(
+    '/milestones/:id/dispute',
+    escrowController.raiseDispute
+);
+
 module.exports = router;

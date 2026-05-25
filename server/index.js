@@ -15,8 +15,10 @@ const projectRoutes = require('./routes/projectRoutes');
 const escrowRoutes = require('./routes/escrowRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const chatSocket = require('./sockets/chat');
-const proposalRoutes = require('./routes/proposalRoutes'); 
-const reviewRoutes = require('./routes/reviewRoutes');// Imported the socket logic
+const proposalRoutes = require('./routes/proposalRoutes');
+const reviewRoutes = require('./routes/reviewRoutes');
+const userRoutes = require('./routes/userRoutes');
+const { startCronJobs } = require('./utils/cronJobs');
 
 // 3. Initialize Express
 const app = express();
@@ -44,9 +46,10 @@ app.use(express.json()); // Parses incoming JSON data in the request body
 app.use('/api/auth', authRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/proposals', proposalRoutes);
-app.use('/api/escrow', escrowRoutes); // Webhook is now safely inside here!
+app.use('/api/escrow', escrowRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/users', userRoutes);
 
 // 7. Basic Global Error Handler
 app.use((err, req, res, next) => {
@@ -65,7 +68,9 @@ mongoose
     .then(() => {
         console.log('✅ Connected to MongoDB successfully');
 
-        // 🚨 CRITICAL FIX: Changed app.listen to server.listen 🚨
+        // Start the auto-approval cron jobs
+        startCronJobs();
+
         server.listen(PORT, () => {
             console.log(`🚀 Server & Sockets are running on port ${PORT}`);
         });

@@ -6,6 +6,10 @@ const escrowSchema = new mongoose.Schema({
         ref: 'Project',
         required: true
     },
+    milestoneId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Milestone',
+    },
     client: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -22,7 +26,7 @@ const escrowSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['funded', 'released', 'refunded'],
+        enum: ['funded', 'released', 'refunded', 'disputed'],
         default: 'funded'
     }
 }, { timestamps: true });

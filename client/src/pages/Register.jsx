@@ -2,19 +2,17 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
+import { Mail, Lock, User, ArrowRight, Zap, Briefcase, Code } from 'lucide-react';
 
 const Register = () => {
     const navigate = useNavigate();
-    const login = useAuthStore((state) => state.login); // Grab our Zustand login function
+    const login = useAuthStore((state) => state.login);
 
-    // Hold the form data in state
     const [formData, setFormData] = useState({
-        name: '',
-        email: '',
-        password: '',
-        role: 'client', // Default to client
+        name: '', email: '', password: '', role: 'client',
     });
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -23,73 +21,139 @@ const Register = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setLoading(true);
 
         try {
-            // 1. Send data to the Express backend
             const response = await api.post('/auth/register', formData);
-
-            // 2. Save the user and token in our global Zustand store
             login(response.data.data.user, response.data.token);
-
-            // 3. Send them to the dashboard!
             navigate('/dashboard');
         } catch (err) {
-            // If the backend sends an error (like "Email already exists"), show it
             setError(err.response?.data?.message || 'Registration failed. Try again.');
+        } finally {
+            setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-            <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
-                <h2 className="text-3xl font-bold text-center text-gray-800 mb-8">Join Gigster</h2>
+        <div style={{
+            minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '2rem', position: 'relative', overflow: 'hidden'
+        }}>
+            <div style={{
+                position: 'absolute', width: '500px', height: '500px', borderRadius: '50%',
+                background: 'radial-gradient(ellipse at center, rgba(6,182,212,0.12) 0%, transparent 70%)',
+                top: '10%', left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none'
+            }} />
 
-                {/* Display Error Message if one exists */}
-                {error && <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4 text-center">{error}</div>}
-
-                <form onSubmit={handleSubmit} className="space-y-5">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
-                        <input
-                            type="text" name="name" required
-                            onChange={handleChange}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
+            <div className="animate-fade-in-up" style={{ maxWidth: '420px', width: '100%', position: 'relative', zIndex: 1 }}>
+                <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                    <div style={{
+                        width: '56px', height: '56px', borderRadius: 'var(--radius-lg)',
+                        background: 'var(--gradient-primary)', display: 'inline-flex',
+                        alignItems: 'center', justifyContent: 'center', marginBottom: '1rem'
+                    }}>
+                        <Zap style={{ width: '28px', height: '28px', color: 'white' }} />
                     </div>
+                    <h1 style={{ fontSize: '1.75rem', fontWeight: '800', marginBottom: '0.5rem', letterSpacing: '-0.025em' }}>
+                        Join Gigster
+                    </h1>
+                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9375rem' }}>
+                        Create your account and start your journey
+                    </p>
+                </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
-                        <input
-                            type="email" name="email" required
-                            onChange={handleChange}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
-                    </div>
+                <div className="card" style={{ padding: '2rem' }}>
+                    {error && (
+                        <div style={{
+                            background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)',
+                            color: '#f87171', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)',
+                            marginBottom: '1.5rem', fontSize: '0.875rem', textAlign: 'center'
+                        }}>
+                            {error}
+                        </div>
+                    )}
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                        <input
-                            type="password" name="password" required minLength="8"
-                            onChange={handleChange}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
-                    </div>
+                    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        {/* Role Selection Cards */}
+                        <div>
+                            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: '600', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                                I want to...
+                            </label>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                <button type="button" onClick={() => setFormData({ ...formData, role: 'client' })}
+                                    style={{
+                                        padding: '1rem', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem',
+                                        background: formData.role === 'client' ? 'rgba(99,102,241,0.12)' : 'var(--color-bg-base)',
+                                        border: formData.role === 'client' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                                        color: formData.role === 'client' ? 'var(--color-primary-light)' : 'var(--color-text-muted)',
+                                        transition: 'all 0.2s'
+                                    }}>
+                                    <Briefcase style={{ width: '20px', height: '20px' }} />
+                                    <span style={{ fontSize: '0.8125rem', fontWeight: '600' }}>Hire Talent</span>
+                                    <span style={{ fontSize: '0.6875rem', opacity: 0.7 }}>Client</span>
+                                </button>
+                                <button type="button" onClick={() => setFormData({ ...formData, role: 'freelancer' })}
+                                    style={{
+                                        padding: '1rem', borderRadius: 'var(--radius-md)', cursor: 'pointer',
+                                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem',
+                                        background: formData.role === 'freelancer' ? 'rgba(6,182,212,0.12)' : 'var(--color-bg-base)',
+                                        border: formData.role === 'freelancer' ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
+                                        color: formData.role === 'freelancer' ? 'var(--color-accent-light)' : 'var(--color-text-muted)',
+                                        transition: 'all 0.2s'
+                                    }}>
+                                    <Code style={{ width: '20px', height: '20px' }} />
+                                    <span style={{ fontSize: '0.8125rem', fontWeight: '600' }}>Find Work</span>
+                                    <span style={{ fontSize: '0.6875rem', opacity: 0.7 }}>Freelancer</span>
+                                </button>
+                            </div>
+                        </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">I want to...</label>
-                        <select name="role" onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                            <option value="client">Hire talent (Client)</option>
-                            <option value="freelancer">Find work (Freelancer)</option>
-                        </select>
-                    </div>
+                        <div>
+                            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: '600', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                                Full Name
+                            </label>
+                            <div style={{ position: 'relative' }}>
+                                <User style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', width: '16px', height: '16px', color: 'var(--color-text-muted)' }} />
+                                <input type="text" name="name" required onChange={handleChange} placeholder="John Doe" className="input-dark" style={{ paddingLeft: '2.5rem' }} />
+                            </div>
+                        </div>
 
-                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg mt-4">
-                        Create Account
-                    </button>
-                </form>
+                        <div>
+                            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: '600', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                                Email Address
+                            </label>
+                            <div style={{ position: 'relative' }}>
+                                <Mail style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', width: '16px', height: '16px', color: 'var(--color-text-muted)' }} />
+                                <input type="email" name="email" required onChange={handleChange} placeholder="you@example.com" className="input-dark" style={{ paddingLeft: '2.5rem' }} />
+                            </div>
+                        </div>
 
-                <p className="mt-6 text-center text-gray-600">
-                    Already have an account? <Link to="/login" className="text-blue-600 font-semibold">Log in</Link>
+                        <div>
+                            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: '600', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                                Password
+                            </label>
+                            <div style={{ position: 'relative' }}>
+                                <Lock style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', width: '16px', height: '16px', color: 'var(--color-text-muted)' }} />
+                                <input type="password" name="password" required minLength="8" onChange={handleChange} autoComplete="new-password" placeholder="Min. 8 characters" className="input-dark" style={{ paddingLeft: '2.5rem' }} />
+                            </div>
+                        </div>
+
+                        <button type="submit" className="btn-primary" disabled={loading} style={{
+                            width: '100%', justifyContent: 'center', padding: '0.75rem', marginTop: '0.5rem', fontSize: '0.9375rem'
+                        }}>
+                            {loading ? 'Creating Account...' : (
+                                <>Create Account <ArrowRight style={{ width: '16px', height: '16px' }} /></>
+                            )}
+                        </button>
+                    </form>
+                </div>
+
+                <p style={{ marginTop: '1.5rem', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
+                    Already have an account?{' '}
+                    <Link to="/login" style={{ color: 'var(--color-primary-light)', fontWeight: '600', textDecoration: 'none' }}>
+                        Sign in
+                    </Link>
                 </p>
             </div>
         </div>

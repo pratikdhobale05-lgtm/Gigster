@@ -33,21 +33,22 @@ const milestoneSchema = new mongoose.Schema(
         // Store the Stripe Payment Intent ID or Razorpay Order ID for verification
         paymentIntentId: {
             type: String,
-            select: false, // Keep it private so it doesn't leak to the frontend unnecessarily
+            select: false,
         },
         // Timestamp for when the freelancer hits "Submit Work"
-        // We need this to calculate the 14-day Auto-Approval cron job
         submittedAt: {
             type: Date,
-        }
+        },
+        // Auto-approval deadline (submittedAt + 14 days)
+        autoApprovalDeadline: {
+            type: Date,
+        },
     },
     { timestamps: true }
 );
 
 // --- MIDDLEWARE: Prevent modification of paid milestones ---
-// This is a safety net. Once a milestone is paid, no one should be able to alter its amount or status.
 milestoneSchema.pre('save', function () {
-    // Prevent edits to paid milestones
     if (this.isModified() && this.status === 'paid' && !this.isNew) {
         throw new Error('Cannot modify a milestone that has already been paid out.');
     }

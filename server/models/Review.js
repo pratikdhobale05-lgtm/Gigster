@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const User = require('./User');
 
 const reviewSchema = new mongoose.Schema({
     project: {
@@ -6,12 +7,12 @@ const reviewSchema = new mongoose.Schema({
         ref: 'Project',
         required: true
     },
-    reviewer: { // The person leaving the review (Usually the Client)
+    reviewer: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true
     },
-    freelancer: { // The person getting reviewed
+    reviewee: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true
@@ -30,5 +31,36 @@ const reviewSchema = new mongoose.Schema({
 
 // Prevent a user from leaving more than one review per project
 reviewSchema.index({ project: 1, reviewer: 1 }, { unique: true });
+
+// --- STATIC METHOD: Calculate and update average ratings on the reviewee ---
+reviewSchema.statics.calcAverageRatings = async function (revieweeId) {
+    const stats = await this.aggregate([
+        { $match: { reviewee: revieweeId } },
+        {
+            $group: {
+                _id: '$reviewee',
+                nRating: { $sum: 1 },
+                avgRating: { $avg: '$rating' }
+            }
+        }
+    ]);
+
+    if (stats.length > 0) {
+        await User.findByIdAndUpdate(revieweeId, {
+            ratingsQuantity: stats[0].nRating,
+            ratingsAverage: Math.round(stats[0].avgRating * 10) / 10
+        });
+    } else {
+        await User.findByIdAndUpdate(revieweeId, {
+            ratingsQuantity: 0,
+            ratingsAverage: 0
+        });
+    }
+};
+
+// Trigger rating recalculation after save
+reviewSchema.post('save', function () {
+    this.constructor.calcAverageRatings(this.reviewee);
+});
 
 module.exports = mongoose.model('Review', reviewSchema);

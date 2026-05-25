@@ -1,359 +1,210 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Calendar, DollarSign, Tag, ArrowLeft, Clock, User, CheckCircle, ShieldCheck } from 'lucide-react';
+import { DollarSign, Tag, ArrowLeft, CheckCircle, ShieldCheck, Star, AlertTriangle, Clock, Send } from 'lucide-react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
-import ChatBox from '../components/ChatBox'; // Make sure this is imported!
-// Find your lucide-react import at the top and add Star:
-import { Calendar, DollarSign, Tag, ArrowLeft, Clock, User, CheckCircle, ShieldCheck, Star } from 'lucide-react';
+import ChatBox from '../components/ChatBox';
+
+const statusMap = {
+    open: { label: 'Open', class: 'badge-open' },
+    in_progress: { label: 'In Progress', class: 'badge-in-progress' },
+    funded: { label: 'Funded', class: 'badge-funded' },
+    under_review: { label: 'Under Review', class: 'badge-under-review' },
+    completed: { label: 'Completed', class: 'badge-completed' },
+    disputed: { label: 'Disputed', class: 'badge-disputed' },
+};
 
 const ProjectDetails = () => {
     const { id } = useParams();
     const { user } = useAuthStore();
-
     const [project, setProject] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-
-    // Proposal State
     const [showBidForm, setShowBidForm] = useState(false);
     const [bidData, setBidData] = useState({ price: '', coverLetter: '' });
     const [bidStatus, setBidStatus] = useState(null);
     const [proposals, setProposals] = useState([]);
-    // --- NEW: Review State ---
     const [rating, setRating] = useState(0);
     const [hoveredRating, setHoveredRating] = useState(0);
     const [reviewComment, setReviewComment] = useState('');
     const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
-    useEffect(() => {
-        fetchProjectData();
-    }, [id, user?.role]);
+    useEffect(() => { fetchProjectData(); }, [id, user?.role]);
 
     const fetchProjectData = async () => {
         try {
-            const projectResponse = await api.get(`/projects/${id}`);
-            setProject(projectResponse.data.data);
-
-            if (user?.role === 'client' && projectResponse.data.data.status === 'open') {
-                const proposalsResponse = await api.get(`/proposals?project=${id}`);
-                setProposals(proposalsResponse.data.data || []);
+            const res = await api.get(`/projects/${id}`);
+            const p = res.data.data;
+            setProject(p);
+            if (user?.role === 'client' && p.status === 'open' && (p.clientId?._id === user._id || p.clientId === user._id)) {
+                const pRes = await api.get(`/proposals?project=${id}`);
+                setProposals(pRes.data.data || []);
             }
-        } catch (err) {
-            setError('Could not load project details. It may have been deleted.');
-        } finally {
-            setLoading(false);
-        }
+        } catch { setError('Could not load project.'); }
+        finally { setLoading(false); }
     };
 
     const handleBidSubmit = async (e) => {
-        e.preventDefault();
-        setBidStatus(null);
-        try {
-            await api.post('/proposals', { project: id, price: bidData.price, coverLetter: bidData.coverLetter });
-            setBidStatus('success');
-            setShowBidForm(false);
-        } catch (err) {
-            setBidStatus('error');
-        }
+        e.preventDefault(); setBidStatus(null);
+        try { await api.post('/proposals', { project: id, price: bidData.price, coverLetter: bidData.coverLetter }); setBidStatus('success'); setShowBidForm(false); }
+        catch { setBidStatus('error'); }
     };
-
-    const handleAcceptProposal = async (proposalId) => {
-        try {
-            await api.put(`/proposals/${proposalId}/accept`);
-            alert('Freelancer hired successfully!');
-            fetchProjectData(); // Refresh the data to show the new status!
-        } catch (err) {
-            alert('Failed to accept proposal.');
-        }
+    const handleAcceptProposal = async (pid) => { try { await api.put(`/proposals/${pid}/accept`); fetchProjectData(); } catch { alert('Failed'); } };
+    const handleFundProject = async () => { try { await api.post(`/escrow/milestones/${id}/fund`); fetchProjectData(); } catch (e) { alert(e.response?.data?.message || 'Failed'); } };
+    const handleSubmitWork = async () => { try { await api.patch(`/escrow/milestones/${id}/submit`); fetchProjectData(); } catch { alert('Failed'); } };
+    const handleApproveWork = async () => { try { await api.patch(`/escrow/milestones/${id}/approve`); fetchProjectData(); } catch { alert('Failed'); } };
+    const handleRaiseDispute = async () => {
+        if (!confirm('Raise a dispute? Funds will be locked for admin review.')) return;
+        try { await api.post(`/escrow/milestones/${id}/dispute`); fetchProjectData(); } catch { alert('Failed'); }
     };
-
-    // --- NEW: ESCROW FUNCTIONS ---
-
-    // 1. Client Funds the Project
-    const handleFundProject = async () => {
-        try {
-            await api.post(`/escrow/milestones/${id}/fund`);
-            alert('Project successfully funded! The money is in Escrow.');
-            fetchProjectData(); // Refresh to update status
-        } catch (err) {
-            alert(err.response?.data?.message || 'Failed to fund project.');
-        }
-    };
-
-    // 2. Freelancer Submits Work
-    const handleSubmitWork = async () => {
-        try {
-            await api.patch(`/escrow/milestones/${id}/submit`);
-            alert('Work submitted to the client for review!');
-            fetchProjectData();
-        } catch (err) {
-            alert('Failed to submit work.');
-        }
-    };
-
-    // 3. Client Approves Work & Releases Funds
-    const handleApproveWork = async () => {
-        try {
-            await api.patch(`/escrow/milestones/${id}/approve`);
-            alert('Work approved! Funds have been released to the freelancer.');
-            fetchProjectData();
-        } catch (err) {
-            alert('Failed to approve work.');
-        }
-    };
-
-    // 4. Client Leaves a Review
     const handleSubmitReview = async (e) => {
-        e.preventDefault();
-        if (rating === 0) {
-            return alert('Please select a star rating!');
-        }
-        try {
-            await api.post('/reviews', {
-                projectId: id,
-                rating,
-                comment: reviewComment
-            });
-            setReviewSubmitted(true);
-            alert('Review submitted successfully!');
-        } catch (err) {
-            alert(err.response?.data?.message || 'Failed to submit review.');
-        }
+        e.preventDefault(); if (!rating) return alert('Select a rating');
+        try { await api.post('/reviews', { projectId: id, rating, comment: reviewComment }); setReviewSubmitted(true); }
+        catch (e) { alert(e.response?.data?.message || 'Failed'); }
     };
 
-    if (loading) return <div className="p-8 text-center text-gray-500">Loading project...</div>;
-    if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
+    if (loading) return <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div className="animate-pulse-glow" style={{ width: 48, height: 48, borderRadius: 'var(--radius-lg)', background: 'var(--gradient-primary)' }} /></div>;
+    if (error) return <div style={{ padding: '2rem', textAlign: 'center', color: '#f87171' }}>{error}</div>;
     if (!project) return null;
 
-    const deadline = new Date(project.deadline).toLocaleDateString();
     const isClient = user?.role === 'client';
-    const isHiredFreelancer = user?.role === 'freelancer' && project.hiredFreelancer === user._id;
+    const isOwner = isClient && (project.clientId?._id === user._id || project.clientId === user._id);
+    const isHired = user?.role === 'freelancer' && project.freelancerId?._id === user._id;
+    const status = statusMap[project.status] || statusMap.open;
 
     return (
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 mb-20">
-            <Link to="/dashboard" className="inline-flex items-center gap-2 text-gray-500 hover:text-blue-600 mb-6 transition-colors">
-                <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+        <div style={{ maxWidth: 900, margin: '0 auto', padding: '2rem 1.5rem 4rem' }}>
+            <Link to="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--color-text-muted)', textDecoration: 'none', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+                <ArrowLeft style={{ width: 16, height: 16 }} /> Back to Dashboard
             </Link>
 
-            {/* --- Main Project Card --- */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8">
-                <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4 mb-6 border-b border-gray-100 pb-6">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900 mb-2">{project.title}</h1>
-                        <div className="flex items-center gap-2">
-                            <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-medium text-sm">
-                                <Tag className="w-4 h-4 inline mr-1" /> {project.category}
-                            </span>
-                            {/* Show Project Status Pill */}
-                            <span className={`px-3 py-1 rounded-full font-medium text-sm border 
-                 ${project.status === 'open' ? 'bg-gray-50 border-gray-200 text-gray-600' : ''}
-                 ${project.status === 'in_progress' ? 'bg-yellow-50 border-yellow-200 text-yellow-700' : ''}
-                 ${project.status === 'funded' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : ''}
-                 ${project.status === 'under_review' ? 'bg-purple-50 border-purple-200 text-purple-700' : ''}
-                 ${project.status === 'completed' ? 'bg-green-50 border-green-200 text-green-700' : ''}
-               `}>
-                                Status: {project.status.replace('_', ' ').toUpperCase()}
-                            </span>
+            {/* Project Card */}
+            <div className="card animate-fade-in-up" style={{ padding: '2rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--color-border)', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1 }}>
+                        <h1 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.75rem' }}>{project.title}</h1>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <span className={`badge ${status.class}`}><span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', display: 'inline-block' }} />{status.label}</span>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Tag style={{ width: 12, height: 12 }} />{project.category}</span>
                         </div>
                     </div>
-                    <div className="flex items-center text-2xl font-bold text-green-600 bg-green-50 px-4 py-2 rounded-lg">
-                        <DollarSign className="w-6 h-6" />
-                        {project.budget}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '1.5rem', fontWeight: 800, padding: '0.5rem 1rem', borderRadius: 'var(--radius-md)', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#34d399' }}>
+                        <DollarSign style={{ width: 20, height: 20 }} />{project.budget}
                     </div>
                 </div>
+                <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--color-text-secondary)' }}>Description</h2>
+                <p style={{ color: 'var(--color-text-muted)', lineHeight: 1.8, whiteSpace: 'pre-wrap', fontSize: '0.9375rem', marginBottom: '2rem' }}>{project.description}</p>
 
-                <div className="mb-8">
-                    <h2 className="text-xl font-bold text-gray-900 mb-4">Project Description</h2>
-                    <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{project.description}</p>
-                </div>
+                {/* Escrow Actions */}
+                <div style={{ background: 'var(--color-bg-base)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                    {project.status === 'in_progress' && isOwner && (<>
+                        <ShieldCheck style={{ width: 48, height: 48, color: '#6366f1', marginBottom: 12 }} />
+                        <h3 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 8 }}>Freelancer Hired</h3>
+                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', maxWidth: 400, marginBottom: 16 }}>Fund the project to lock money in Escrow.</p>
+                        <button onClick={handleFundProject} className="btn-primary"><ShieldCheck style={{ width: 16, height: 16 }} /> Fund Project</button>
+                    </>)}
+                    {project.status === 'in_progress' && isHired && <p style={{ color: 'var(--color-text-muted)' }}>⏳ Waiting for client to fund...</p>}
 
-                {/* --- ESCROW / MILESTONE ACTION AREA --- */}
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 flex flex-col items-center justify-center text-center mt-8">
+                    {project.status === 'funded' && isHired && (<>
+                        <ShieldCheck style={{ width: 48, height: 48, color: '#06b6d4', marginBottom: 12 }} />
+                        <h3 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 8 }}>Funded!</h3>
+                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', maxWidth: 400, marginBottom: 16 }}>Submit your work when ready.</p>
+                        <button onClick={handleSubmitWork} className="btn-primary"><Send style={{ width: 16, height: 16 }} /> Submit Work</button>
+                    </>)}
+                    {project.status === 'funded' && isOwner && <p style={{ color: '#22d3ee' }}>🔒 Funds in Escrow. Waiting for submission.</p>}
 
-                    {/* State 1: Freelancer Hired, Not Funded Yet (Client sees Fund button) */}
-                    {project.status === 'in_progress' && isClient && (
-                        <>
-                            <ShieldCheck className="w-12 h-12 text-indigo-500 mb-3" />
-                            <h3 className="text-lg font-bold text-gray-900">Freelancer Hired</h3>
-                            <p className="text-gray-600 mb-4 text-sm max-w-md">Fund the project to lock the money in Escrow. Your freelancer will be notified to start working.</p>
-                            <button onClick={handleFundProject} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-8 rounded-lg transition-colors">
-                                Fund Project Securely
-                            </button>
-                        </>
-                    )}
-                    {project.status === 'in_progress' && isHiredFreelancer && (
-                        <p className="text-gray-600 font-medium">Waiting for the client to fund the project into Escrow before you begin...</p>
-                    )}
-
-                    {/* State 2: Funded, Working (Freelancer sees Submit button) */}
-                    {project.status === 'funded' && isHiredFreelancer && (
-                        <>
-                            <h3 className="text-lg font-bold text-gray-900">Project Funded!</h3>
-                            <p className="text-gray-600 mb-4 text-sm max-w-md">The client has secured the funds in Escrow. Once you are finished, submit your work here.</p>
-                            <button onClick={handleSubmitWork} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-8 rounded-lg transition-colors">
-                                Submit Completed Work
-                            </button>
-                        </>
-                    )}
-                    {project.status === 'funded' && isClient && (
-                        <p className="text-indigo-600 font-medium"><ShieldCheck className="w-5 h-5 inline mr-1" /> Funds secured in Escrow. Waiting for freelancer to submit work.</p>
-                    )}
-
-                    {/* State 3: Submitted, Under Review (Client sees Approve button) */}
-                    {project.status === 'under_review' && isClient && (
-                        <>
-                            <h3 className="text-lg font-bold text-purple-900">Work Submitted for Review</h3>
-                            <p className="text-gray-600 mb-4 text-sm max-w-md">Review the work provided in the chat. If everything looks good, approve it to release the funds.</p>
-                            <button onClick={handleApproveWork} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-8 rounded-lg transition-colors">
-                                Approve Work & Release Funds
-                            </button>
-                        </>
-                    )}
-                    {project.status === 'under_review' && isHiredFreelancer && (
-                        <p className="text-purple-600 font-medium">Work submitted! Waiting for the client to review and approve...</p>
-                    )}
-
-                    {/* State 4: Completed & Review Form */}
-                    {project.status === 'completed' && (
-                        <div className="flex flex-col items-center w-full max-w-lg">
-                            <CheckCircle className="w-12 h-12 text-green-500 mb-3" />
-                            <h3 className="text-xl font-bold text-green-700 mb-6">Project Completed Successfully!</h3>
-
-                            {/* Show Review Form ONLY if it's the client and they haven't submitted one yet */}
-                            {isClient && !reviewSubmitted ? (
-                                <div className="bg-white p-6 rounded-xl border border-gray-200 w-full shadow-sm">
-                                    <h4 className="text-lg font-bold text-gray-900 mb-4 text-center">Rate your Freelancer</h4>
-                                    <form onSubmit={handleSubmitReview} className="flex flex-col gap-4">
-
-                                        {/* The 5-Star Clicker */}
-                                        <div className="flex justify-center gap-2 mb-2">
-                                            {[1, 2, 3, 4, 5].map((star) => (
-                                                <Star
-                                                    key={star}
-                                                    className={`w-8 h-8 cursor-pointer transition-colors ${(hoveredRating || rating) >= star
-                                                            ? 'fill-yellow-400 text-yellow-400'
-                                                            : 'text-gray-300'
-                                                        }`}
-                                                    onMouseEnter={() => setHoveredRating(star)}
-                                                    onMouseLeave={() => setHoveredRating(0)}
-                                                    onClick={() => setRating(star)}
-                                                />
-                                            ))}
-                                        </div>
-
-                                        <textarea
-                                            required
-                                            rows="3"
-                                            value={reviewComment}
-                                            onChange={(e) => setReviewComment(e.target.value)}
-                                            placeholder="What was it like working with them?"
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                                        ></textarea>
-
-                                        <button type="submit" className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-8 rounded-lg transition-colors mt-2">
-                                            Submit Review
-                                        </button>
-                                    </form>
-                                </div>
-                            ) : (
-                                <p className="text-gray-600 mt-1">Funds have been released and this contract is closed.</p>
-                            )}
+                    {project.status === 'under_review' && isOwner && (<>
+                        <Clock style={{ width: 48, height: 48, color: '#c084fc', marginBottom: 12 }} />
+                        <h3 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 8 }}>Work Submitted</h3>
+                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', maxWidth: 400, marginBottom: 16 }}>Review deliverables. You have 14 days to respond.</p>
+                        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+                            <button onClick={handleApproveWork} className="btn-success"><CheckCircle style={{ width: 16, height: 16 }} /> Approve & Release</button>
+                            <button onClick={handleRaiseDispute} className="btn-danger"><AlertTriangle style={{ width: 16, height: 16 }} /> Dispute</button>
                         </div>
-                    )}
+                    </>)}
+                    {project.status === 'under_review' && isHired && (<div>
+                        <p style={{ color: '#c084fc', marginBottom: 12 }}>Waiting for review...</p>
+                        <button onClick={handleRaiseDispute} className="btn-danger" style={{ fontSize: '0.8125rem' }}><AlertTriangle style={{ width: 14, height: 14 }} /> Dispute</button>
+                    </div>)}
+
+                    {project.status === 'disputed' && (<>
+                        <AlertTriangle style={{ width: 48, height: 48, color: '#f87171', marginBottom: 12 }} />
+                        <h3 style={{ color: '#f87171', fontWeight: 700, marginBottom: 8 }}>Dispute Active</h3>
+                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>Funds locked. Admin will review.</p>
+                    </>)}
+
+                    {project.status === 'completed' && (<div style={{ width: '100%', maxWidth: 480 }}>
+                        <CheckCircle style={{ width: 48, height: 48, color: '#10b981', margin: '0 auto 12px' }} />
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#34d399', marginBottom: '1.5rem' }}>Completed!</h3>
+                        {(isOwner || isHired) && !reviewSubmitted ? (
+                            <div className="card" style={{ padding: '1.5rem', textAlign: 'left' }}>
+                                <h4 style={{ fontWeight: 700, marginBottom: '1rem', textAlign: 'center' }}>Rate your {isClient ? 'Freelancer' : 'Client'}</h4>
+                                <form onSubmit={handleSubmitReview} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
+                                        {[1,2,3,4,5].map(s => <Star key={s} style={{ width: 32, height: 32, cursor: 'pointer', transition: 'all 0.15s', color: (hoveredRating||rating)>=s?'#fbbf24':'var(--color-bg-elevated)', fill: (hoveredRating||rating)>=s?'#fbbf24':'none' }} onMouseEnter={()=>setHoveredRating(s)} onMouseLeave={()=>setHoveredRating(0)} onClick={()=>setRating(s)} />)}
+                                    </div>
+                                    <textarea required rows="3" value={reviewComment} onChange={e=>setReviewComment(e.target.value)} placeholder="Your experience?" className="input-dark" style={{ resize: 'none' }} />
+                                    <button type="submit" className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}>Submit Review</button>
+                                </form>
+                            </div>
+                        ) : <p style={{ color: 'var(--color-text-muted)' }}>{reviewSubmitted ? '✅ Review submitted!' : 'Contract closed.'}</p>}
+                    </div>)}
+
+                    {project.status === 'open' && <p style={{ color: 'var(--color-text-muted)' }}>{isClient ? 'Review proposals below.' : 'Submit your proposal!'}</p>}
                 </div>
             </div>
 
-            {/* --- FREELANCER BIDDING AREA (Only shows for freelancers when project is open) --- */}
-            {!isClient && project.status === 'open' && !project.hiredFreelancer && (
-                <div className="mt-8 bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+            {/* Bid Form */}
+            {!isClient && project.status === 'open' && !project.freelancerId && (
+                <div className="card" style={{ padding: '2rem', marginBottom: '1.5rem' }}>
+                    {bidStatus === 'success' && <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#34d399', padding: '0.75rem', borderRadius: 'var(--radius-md)', marginBottom: '1rem', textAlign: 'center', fontSize: '0.875rem' }}>✅ Proposal submitted!</div>}
                     {!showBidForm ? (
-                        <div className="text-center">
-                            <h3 className="text-lg font-bold text-gray-900 mb-2">Interested in this project?</h3>
-                            <button 
-                                onClick={() => setShowBidForm(true)}
-                                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors"
-                            >
-                                Submit a Proposal
-                            </button>
+                        <div style={{ textAlign: 'center' }}>
+                            <h3 style={{ fontWeight: 700, marginBottom: 12 }}>Interested?</h3>
+                            <button onClick={() => setShowBidForm(true)} className="btn-primary">Submit a Proposal</button>
                         </div>
                     ) : (
-                        <form onSubmit={handleBidSubmit} className="space-y-4">
-                            <h3 className="text-xl font-bold text-gray-900 mb-4">Submit Your Proposal</h3>
-                            
-                            {bidStatus === 'success' && <div className="bg-green-100 text-green-700 p-3 rounded-lg mb-4">Your proposal has been submitted successfully!</div>}
-                            {bidStatus === 'error' && <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4">Failed to submit proposal. You may have already bid on this project.</div>}
-                            
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Your Proposed Budget ($)</label>
-                                <input 
-                                    type="number" required min="1"
-                                    value={bidData.price}
-                                    onChange={(e) => setBidData({...bidData, price: e.target.value})}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                />
-                            </div>
-                            
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Cover Letter</label>
-                                <textarea 
-                                    required rows="4"
-                                    value={bidData.coverLetter}
-                                    onChange={(e) => setBidData({...bidData, coverLetter: e.target.value})}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                                    placeholder="Explain why you are the best fit for this job..."
-                                ></textarea>
-                            </div>
-                            
-                            <div className="flex justify-end gap-3 mt-4">
-                                <button type="button" onClick={() => setShowBidForm(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
-                                    Cancel
-                                </button>
-                                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">
-                                    Submit Proposal
-                                </button>
+                        <form onSubmit={handleBidSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                            <h3 style={{ fontWeight: 700 }}>Your Proposal</h3>
+                            {bidStatus === 'error' && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', padding: '0.75rem', borderRadius: 'var(--radius-md)', fontSize: '0.875rem' }}>Failed. You may have already bid.</div>}
+                            <div><label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Budget ($)</label><input type="number" required min="1" value={bidData.price} onChange={e=>setBidData({...bidData, price: e.target.value})} className="input-dark" /></div>
+                            <div><label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Cover Letter</label><textarea required rows="4" value={bidData.coverLetter} onChange={e=>setBidData({...bidData, coverLetter: e.target.value})} className="input-dark" style={{ resize: 'none' }} placeholder="Why you're the best fit..." /></div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+                                <button type="button" onClick={() => setShowBidForm(false)} className="btn-secondary">Cancel</button>
+                                <button type="submit" className="btn-primary">Submit</button>
                             </div>
                         </form>
                     )}
                 </div>
             )}
 
-            {/* --- LIVE CHAT (Only shows if someone is hired) --- */}
-            {project.hiredFreelancer && (isClient || isHiredFreelancer) && (
-                <div className="mt-12">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Project Workspace</h2>
-                    <p className="text-gray-600">Communicate directly with your project partner here.</p>
+            {/* Chat */}
+            {project.freelancerId && (isOwner || isHired) && (
+                <div style={{ marginTop: '2rem' }}>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 4 }}>Project Workspace</h2>
+                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>Communicate with your partner.</p>
                     <ChatBox projectId={project._id} currentUser={user} />
                 </div>
             )}
 
-            {/* --- RECEIVED PROPOSALS (Only for Client before hiring) --- */}
-            {isClient && project.status === 'open' && (
-                <div className="mt-12">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Received Proposals ({proposals.length})</h2>
-                    {proposals.length === 0 ? (
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center text-gray-500">
-                            No one has bid on this project yet. Check back soon!
-                        </div>
-                    ) : (
-                        <div className="space-y-6">
-                            {proposals.map(proposal => (
-                                <div key={proposal._id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                                    <div className="flex justify-between items-start mb-4">
+            {/* Proposals */}
+            {isOwner && project.status === 'open' && (
+                <div style={{ marginTop: '2rem' }}>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem' }}>Proposals ({proposals.length})</h2>
+                    {proposals.length === 0 ? <div className="card" style={{ padding: '3rem', textAlign: 'center' }}><p style={{ color: 'var(--color-text-muted)' }}>No proposals yet.</p></div> : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {proposals.map(p => (
+                                <div key={p._id} className="card" style={{ padding: '1.5rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: 12 }}>
                                         <div>
-                                            <h3 className="font-bold text-blue-600 hover:underline">
-                                                <Link to={`/profile/${proposal.freelancer}`}>
-                                                    View Freelancer Profile
-                                                </Link>
-                                            </h3>
-                                            <p className="text-sm text-gray-500 mt-1">Proposed Price: <span className="font-bold text-green-600">${proposal.price}</span></p>
+                                            <Link to={`/profile/${p.freelancer?._id||p.freelancer}`} style={{ color: 'var(--color-primary-light)', fontWeight: 600, textDecoration: 'none' }}>{p.freelancer?.name || 'Freelancer'}</Link>
+                                            {p.freelancer?.ratingsAverage > 0 && <span style={{ marginLeft: 12, fontSize: '0.8125rem', color: '#fbbf24' }}><Star style={{ width: 14, height: 14, display: 'inline', verticalAlign: 'middle', fill: '#fbbf24' }} /> {p.freelancer.ratingsAverage}</span>}
+                                            <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)', marginTop: 4 }}>Proposed: <span style={{ color: '#34d399', fontWeight: 700 }}>${p.price}</span></p>
                                         </div>
-                                        <button onClick={() => handleAcceptProposal(proposal._id)} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
-                                            Accept & Hire
-                                        </button>
+                                        <button onClick={() => handleAcceptProposal(p._id)} className="btn-success"><CheckCircle style={{ width: 16, height: 16 }} /> Accept & Hire</button>
                                     </div>
-                                    <div className="bg-gray-50 p-4 rounded-lg">
-                                        <p className="text-gray-600 text-sm whitespace-pre-wrap">{proposal.coverLetter}</p>
+                                    <div style={{ background: 'var(--color-bg-base)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
+                                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{p.coverLetter}</p>
                                     </div>
                                 </div>
                             ))}

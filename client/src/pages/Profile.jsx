@@ -1,89 +1,120 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Star, User as UserIcon, Mail, Briefcase, ArrowLeft } from 'lucide-react';
+import { Star, User as UserIcon, Briefcase, ArrowLeft, MapPin, Calendar } from 'lucide-react';
 import api from '../utils/api';
 
 const Profile = () => {
-  const { id } = useParams(); // The ID of the freelancer we are viewing
-  const [profile, setProfile] = useState(null);
-  const [reviews, setReviews] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+    const { id } = useParams();
+    const [profile, setProfile] = useState(null);
+    const [reviews, setReviews] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
 
-  useEffect(() => {
-    const fetchProfileAndReviews = async () => {
-      try {
-        // In a real app, you'd have a route like /users/:id. 
-        // For now, we will rely on the reviews route we just built!
-        const reviewsResponse = await api.get(`/reviews/freelancer/${id}`);
-        setReviews(reviewsResponse.data.data || []);
-      } catch (err) {
-        setError('Could not load profile data.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProfileAndReviews();
-  }, [id]);
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [userRes, reviewRes] = await Promise.all([
+                    api.get(`/users/${id}`),
+                    api.get(`/reviews/user/${id}`)
+                ]);
+                setProfile(userRes.data.data.user);
+                setReviews(reviewRes.data.data || []);
+            } catch {
+                setError('Could not load profile.');
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, [id]);
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Loading profile...</div>;
-  if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
+    if (loading) return <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div className="animate-pulse-glow" style={{ width: 48, height: 48, borderRadius: 'var(--radius-lg)', background: 'var(--gradient-primary)' }} /></div>;
+    if (error) return <div style={{ padding: '2rem', textAlign: 'center', color: '#f87171' }}>{error}</div>;
 
-  // Calculate average rating
-  const averageRating = reviews.length > 0 
-    ? (reviews.reduce((acc, curr) => acc + curr.rating, 0) / reviews.length).toFixed(1)
-    : 0;
+    const avgRating = reviews.length > 0
+        ? (reviews.reduce((a, c) => a + c.rating, 0) / reviews.length).toFixed(1)
+        : profile?.ratingsAverage || 0;
 
-  return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 mb-20">
-      <Link to="/dashboard" className="inline-flex items-center gap-2 text-gray-500 hover:text-blue-600 mb-6 transition-colors">
-        <ArrowLeft className="w-4 h-4" /> Back
-      </Link>
+    return (
+        <div style={{ maxWidth: 800, margin: '0 auto', padding: '2rem 1.5rem 4rem' }}>
+            <Link to="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--color-text-muted)', textDecoration: 'none', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+                <ArrowLeft style={{ width: 16, height: 16 }} /> Back
+            </Link>
 
-      {/* --- Profile Header --- */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-8 flex flex-col md:flex-row items-center gap-6">
-        <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
-          <UserIcon className="w-12 h-12" />
-        </div>
-        <div className="text-center md:text-left flex-1">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Freelancer Profile</h1>
-          <div className="flex flex-col md:flex-row items-center gap-4 text-gray-600 text-sm">
-            <span className="flex items-center gap-1"><Briefcase className="w-4 h-4"/> Available for work</span>
-            <span className="flex items-center gap-1 font-bold text-yellow-600">
-              <Star className="w-4 h-4 fill-yellow-500 text-yellow-500"/> 
-              {averageRating} ({reviews.length} reviews)
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* --- Reviews Section --- */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Client Reviews</h2>
-        
-        {reviews.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">This freelancer hasn't received any reviews yet.</p>
-        ) : (
-          <div className="space-y-6">
-            {reviews.map((review) => (
-              <div key={review._id} className="border-b border-gray-100 last:border-0 pb-6 last:pb-0">
-                <div className="flex justify-between items-start mb-2">
-                  <h4 className="font-bold text-gray-900">{review.project?.title || 'Private Project'}</h4>
-                  <div className="flex text-yellow-400">
-                    {[...Array(review.rating)].map((_, i) => (
-                      <Star key={i} className="w-4 h-4 fill-current" />
-                    ))}
-                  </div>
+            {/* Profile Header */}
+            <div className="card animate-fade-in-up" style={{ padding: '2rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+                    <div style={{
+                        width: 80, height: 80, borderRadius: 'var(--radius-lg)',
+                        background: 'var(--gradient-primary)', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                    }}>
+                        {profile?.profile?.avatarUrl ? (
+                            <img src={profile.profile.avatarUrl} alt="" style={{ width: 80, height: 80, borderRadius: 'var(--radius-lg)', objectFit: 'cover' }} />
+                        ) : (
+                            <UserIcon style={{ width: 36, height: 36, color: 'white' }} />
+                        )}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                        <h1 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: 4 }}>{profile?.name}</h1>
+                        {profile?.profile?.title && <p style={{ color: 'var(--color-primary-light)', fontSize: '0.9375rem', fontWeight: 600, marginBottom: 8 }}>{profile.profile.title}</p>}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Briefcase style={{ width: 14, height: 14 }} />{profile?.role}</span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#fbbf24', fontWeight: 700 }}>
+                                <Star style={{ width: 14, height: 14, fill: '#fbbf24' }} /> {avgRating} ({reviews.length} reviews)
+                            </span>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <Calendar style={{ width: 14, height: 14 }} /> Joined {new Date(profile?.createdAt).toLocaleDateString()}
+                            </span>
+                        </div>
+                    </div>
                 </div>
-                <p className="text-gray-700 italic">"{review.comment}"</p>
-                <p className="text-xs text-gray-400 mt-2">Reviewed by {review.reviewer?.name || 'A Client'} on {new Date(review.createdAt).toLocaleDateString()}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+
+                {profile?.profile?.bio && (
+                    <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--color-border)' }}>
+                        <p style={{ color: 'var(--color-text-muted)', lineHeight: 1.7, fontSize: '0.9375rem' }}>{profile.profile.bio}</p>
+                    </div>
+                )}
+
+                {profile?.profile?.skills?.length > 0 && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: '1rem' }}>
+                        {profile.profile.skills.map((skill, i) => (
+                            <span key={i} style={{
+                                padding: '0.25rem 0.75rem', borderRadius: 'var(--radius-full)',
+                                background: 'rgba(99,102,241,0.1)', color: 'var(--color-primary-light)',
+                                fontSize: '0.75rem', fontWeight: 600
+                            }}>{skill}</span>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Reviews */}
+            <div className="card animate-fade-in-up stagger-2" style={{ padding: '2rem' }}>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1.5rem' }}>Reviews</h2>
+                {reviews.length === 0 ? (
+                    <p style={{ color: 'var(--color-text-muted)', textAlign: 'center', padding: '2rem 0' }}>No reviews yet.</p>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        {reviews.map(r => (
+                            <div key={r._id} style={{ paddingBottom: '1.25rem', borderBottom: '1px solid var(--color-border)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                    <h4 style={{ fontWeight: 600, fontSize: '0.9375rem' }}>{r.project?.title || 'Project'}</h4>
+                                    <div style={{ display: 'flex', gap: 2 }}>
+                                        {[...Array(5)].map((_, i) => <Star key={i} style={{ width: 14, height: 14, color: i < r.rating ? '#fbbf24' : 'var(--color-bg-elevated)', fill: i < r.rating ? '#fbbf24' : 'none' }} />)}
+                                    </div>
+                                </div>
+                                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', fontStyle: 'italic', lineHeight: 1.6 }}>"{r.comment}"</p>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: 6 }}>
+                                    By {r.reviewer?.name || 'User'} · {new Date(r.createdAt).toLocaleDateString()}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 };
 
 export default Profile;

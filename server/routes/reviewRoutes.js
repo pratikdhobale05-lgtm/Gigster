@@ -2,11 +2,11 @@ const express = require('express');
 const router = express.Router();
 const Review = require('../models/Review');
 const Project = require('../models/Project');
-const { protect } = require('../middleware/authMiddleware'); // Check your auth path
+const auth = require('../middleware/auth');
 
 // @route   POST /api/reviews
-// @desc    Leave a review for a completed project
-router.post('/', protect, async (req, res) => {
+// @desc    Leave a review for a completed project (both parties can review)
+router.post('/', auth.protect, async (req, res) => {
     try {
         const { projectId, rating, comment } = req.body;
 
@@ -18,16 +18,26 @@ router.post('/', protect, async (req, res) => {
             return res.status(400).json({ message: 'You can only review completed projects.' });
         }
 
-        // Ensure the person reviewing is the client who made the project
-        if (project.client.toString() !== req.user._id.toString()) {
-            return res.status(403).json({ message: 'Only the project client can leave a review.' });
+        const isClient = (project.clientId?._id?.toString() || project.clientId?.toString()) === req.user._id.toString();
+        const isFreelancer = (project.freelancerId?._id?.toString() || project.freelancerId?.toString()) === req.user._id.toString();
+
+        if (!isClient && !isFreelancer) {
+            return res.status(403).json({ message: 'Only project participants can leave a review.' });
+        }
+
+        // Determine who is being reviewed
+        let reviewee;
+        if (isClient) {
+            reviewee = project.freelancerId?._id || project.freelancerId;
+        } else {
+            reviewee = project.clientId?._id || project.clientId;
         }
 
         // Create the review
         const review = await Review.create({
             project: projectId,
             reviewer: req.user._id,
-            freelancer: project.hiredFreelancer,
+            reviewee,
             rating,
             comment
         });
@@ -42,12 +52,25 @@ router.post('/', protect, async (req, res) => {
     }
 });
 
-// @route   GET /api/reviews/freelancer/:freelancerId
-// @desc    Get all reviews for a specific freelancer
+// @route   GET /api/reviews/user/:userId
+// @desc    Get all reviews for a specific user
+router.get('/user/:userId', async (req, res) => {
+    try {
+        const reviews = await Review.find({ reviewee: req.params.userId })
+            .populate('reviewer', 'name profile.avatarUrl')
+            .populate('project', 'title');
+
+        res.status(200).json({ success: true, data: reviews });
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+});
+
+// Keep backward compatibility
 router.get('/freelancer/:freelancerId', async (req, res) => {
     try {
-        const reviews = await Review.find({ freelancer: req.params.freelancerId })
-            .populate('reviewer', 'name')
+        const reviews = await Review.find({ reviewee: req.params.freelancerId })
+            .populate('reviewer', 'name profile.avatarUrl')
             .populate('project', 'title');
 
         res.status(200).json({ success: true, data: reviews });

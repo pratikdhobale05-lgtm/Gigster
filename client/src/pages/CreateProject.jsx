@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import { Briefcase } from 'lucide-react';
+import { Briefcase, ArrowRight, DollarSign, Calendar, Tag, FileText } from 'lucide-react';
+
+const categories = [
+    'Web Development', 'Mobile App', 'Design', 'Writing', 'Marketing',
+    'Data Science', 'DevOps', 'AI / Machine Learning'
+];
 
 const CreateProject = () => {
     const navigate = useNavigate();
@@ -9,11 +14,7 @@ const CreateProject = () => {
     const [loading, setLoading] = useState(false);
 
     const [formData, setFormData] = useState({
-        title: '',
-        description: '',
-        budget: '',
-        category: 'Web Development', // Default value
-        deadline: ''
+        title: '', description: '', budget: '', category: 'Web Development', deadline: ''
     });
 
     const handleChange = (e) => {
@@ -26,10 +27,7 @@ const CreateProject = () => {
         setLoading(true);
 
         try {
-            // Send the project data to your backend
             await api.post('/projects', formData);
-
-            // If successful, send them back to the dashboard
             navigate('/dashboard');
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to post project. Try again.');
@@ -38,75 +36,102 @@ const CreateProject = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+        <div style={{ minHeight: '100vh', padding: '2rem 1.5rem' }}>
+            <div className="animate-fade-in-up" style={{ maxWidth: '640px', margin: '0 auto' }}>
 
-                <div className="flex items-center gap-3 mb-8 border-b border-gray-100 pb-6">
-                    <Briefcase className="w-8 h-8 text-blue-600" />
-                    <h2 className="text-3xl font-bold text-gray-900">Post a New Gig</h2>
+                {/* Header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2rem' }}>
+                    <div style={{
+                        width: '44px', height: '44px', borderRadius: 'var(--radius-md)',
+                        background: 'var(--gradient-primary)', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center'
+                    }}>
+                        <Briefcase style={{ width: '22px', height: '22px', color: 'white' }} />
+                    </div>
+                    <div>
+                        <h1 style={{ fontSize: '1.5rem', fontWeight: '800', letterSpacing: '-0.025em' }}>Post a New Gig</h1>
+                        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.8125rem' }}>Describe your project and find the perfect freelancer.</p>
+                    </div>
                 </div>
 
-                {error && <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-6">{error}</div>}
+                <div className="card" style={{ padding: '2rem' }}>
+                    {error && (
+                        <div style={{
+                            background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)',
+                            color: '#f87171', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)',
+                            marginBottom: '1.5rem', fontSize: '0.875rem'
+                        }}>
+                            {error}
+                        </div>
+                    )}
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    {/* Title */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Project Title</label>
-                        <input
-                            type="text" name="title" required onChange={handleChange}
-                            placeholder="e.g., Build a modern React website"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
-                    </div>
-
-                    {/* Category */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-                        <select name="category" onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
-                            <option value="Web Development">Web Development</option>
-                            <option value="Mobile App">Mobile App</option>
-                            <option value="Design">Design / UI/UX</option>
-                            <option value="Writing">Writing & Translation</option>
-                            <option value="Marketing">Digital Marketing</option>
-                        </select>
-                    </div>
-
-                    {/* Description */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Project Description</label>
-                        <textarea
-                            name="description" required rows="5" onChange={handleChange}
-                            placeholder="Describe what you need done in detail..."
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                        ></textarea>
-                    </div>
-
-                    {/* Budget and Deadline Row */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        {/* Title */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Budget ($)</label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', fontWeight: '600', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                                <FileText style={{ width: '14px', height: '14px' }} /> Project Title
+                            </label>
                             <input
-                                type="number" name="budget" required min="5" onChange={handleChange}
-                                placeholder="e.g., 500"
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                type="text" name="title" required onChange={handleChange}
+                                placeholder="e.g., Build a modern React dashboard" className="input-dark"
                             />
                         </div>
+
+                        {/* Category */}
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Deadline</label>
-                            <input
-                                type="date" name="deadline" required onChange={handleChange}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', fontWeight: '600', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                                <Tag style={{ width: '14px', height: '14px' }} /> Category
+                            </label>
+                            <select name="category" onChange={handleChange} className="input-dark" style={{ cursor: 'pointer' }}>
+                                {categories.map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Description */}
+                        <div>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', fontWeight: '600', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                                Description
+                            </label>
+                            <textarea
+                                name="description" required rows="5" onChange={handleChange}
+                                placeholder="Describe what you need done in detail..."
+                                className="input-dark" style={{ resize: 'none', lineHeight: '1.6' }}
                             />
                         </div>
-                    </div>
 
-                    <button
-                        type="submit" disabled={loading}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg mt-8 transition-colors disabled:bg-blue-400"
-                    >
-                        {loading ? 'Posting...' : 'Publish Gig'}
-                    </button>
-                </form>
+                        {/* Budget & Deadline */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <div>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', fontWeight: '600', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                                    <DollarSign style={{ width: '14px', height: '14px' }} /> Budget ($)
+                                </label>
+                                <input
+                                    type="number" name="budget" required min="5" onChange={handleChange}
+                                    placeholder="e.g., 500" className="input-dark"
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', fontWeight: '600', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                                    <Calendar style={{ width: '14px', height: '14px' }} /> Deadline
+                                </label>
+                                <input
+                                    type="date" name="deadline" required onChange={handleChange}
+                                    className="input-dark"
+                                />
+                            </div>
+                        </div>
+
+                        <button type="submit" className="btn-primary" disabled={loading} style={{
+                            width: '100%', justifyContent: 'center', padding: '0.75rem', marginTop: '0.5rem', fontSize: '0.9375rem'
+                        }}>
+                            {loading ? 'Publishing...' : (
+                                <>Publish Gig <ArrowRight style={{ width: '16px', height: '16px' }} /></>
+                            )}
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     );

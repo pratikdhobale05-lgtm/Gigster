@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
+import { Mail, Lock, ArrowRight, Zap } from 'lucide-react';
 
 const Login = () => {
     const navigate = useNavigate();
@@ -9,6 +10,7 @@ const Login = () => {
 
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -17,47 +19,115 @@ const Login = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setLoading(true);
 
         try {
             const response = await api.post('/auth/login', formData);
             login(response.data.data.user, response.data.token);
-            navigate('/dashboard'); // Go to dashboard on success!
+            navigate('/dashboard');
         } catch (err) {
             setError(err.response?.data?.message || 'Invalid email or password');
+        } finally {
+            setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-            <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
-                <h2 className="text-3xl font-bold text-center text-gray-800 mb-8">Welcome back to Gigster</h2>
+        <div style={{
+            minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '2rem', position: 'relative', overflow: 'hidden'
+        }}>
+            {/* Background glow */}
+            <div style={{
+                position: 'absolute', width: '500px', height: '500px', borderRadius: '50%',
+                background: 'var(--gradient-glow)', top: '10%', left: '50%', transform: 'translateX(-50%)',
+                pointerEvents: 'none'
+            }} />
 
-                {error && <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4 text-center">{error}</div>}
-
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
-                        <input
-                            type="email" name="email" required onChange={handleChange}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
+            <div className="animate-fade-in-up" style={{
+                maxWidth: '420px', width: '100%', position: 'relative', zIndex: 1
+            }}>
+                {/* Logo */}
+                <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                    <div style={{
+                        width: '56px', height: '56px', borderRadius: 'var(--radius-lg)',
+                        background: 'var(--gradient-primary)', display: 'inline-flex',
+                        alignItems: 'center', justifyContent: 'center', marginBottom: '1rem'
+                    }}>
+                        <Zap style={{ width: '28px', height: '28px', color: 'white' }} />
                     </div>
+                    <h1 style={{ fontSize: '1.75rem', fontWeight: '800', marginBottom: '0.5rem', letterSpacing: '-0.025em' }}>
+                        Welcome back
+                    </h1>
+                    <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9375rem' }}>
+                        Sign in to your Gigster account
+                    </p>
+                </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                        <input
-                            type="password" name="password" required onChange={handleChange}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
-                    </div>
+                {/* Card */}
+                <div className="card" style={{ padding: '2rem' }}>
+                    {error && (
+                        <div style={{
+                            background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)',
+                            color: '#f87171', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)',
+                            marginBottom: '1.5rem', fontSize: '0.875rem', textAlign: 'center'
+                        }}>
+                            {error}
+                        </div>
+                    )}
 
-                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">
-                        Sign In
-                    </button>
-                </form>
+                    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        <div>
+                            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: '600', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                                Email Address
+                            </label>
+                            <div style={{ position: 'relative' }}>
+                                <Mail style={{
+                                    position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)',
+                                    width: '16px', height: '16px', color: 'var(--color-text-muted)'
+                                }} />
+                                <input
+                                    type="email" name="email" required onChange={handleChange}
+                                    placeholder="you@example.com"
+                                    className="input-dark"
+                                    style={{ paddingLeft: '2.5rem' }}
+                                />
+                            </div>
+                        </div>
 
-                <p className="mt-6 text-center text-gray-600">
-                    Don't have an account? <Link to="/register" className="text-blue-600 font-semibold">Sign up here</Link>
+                        <div>
+                            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: '600', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
+                                Password
+                            </label>
+                            <div style={{ position: 'relative' }}>
+                                <Lock style={{
+                                    position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)',
+                                    width: '16px', height: '16px', color: 'var(--color-text-muted)'
+                                }} />
+                                <input
+                                    type="password" name="password" required onChange={handleChange}
+                                    autoComplete="current-password" placeholder="••••••••"
+                                    className="input-dark"
+                                    style={{ paddingLeft: '2.5rem' }}
+                                />
+                            </div>
+                        </div>
+
+                        <button type="submit" className="btn-primary" disabled={loading} style={{
+                            width: '100%', justifyContent: 'center', padding: '0.75rem', marginTop: '0.5rem', fontSize: '0.9375rem'
+                        }}>
+                            {loading ? 'Signing in...' : (
+                                <>Sign In <ArrowRight style={{ width: '16px', height: '16px' }} /></>
+                            )}
+                        </button>
+                    </form>
+                </div>
+
+                <p style={{ marginTop: '1.5rem', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
+                    Don't have an account?{' '}
+                    <Link to="/register" style={{ color: 'var(--color-primary-light)', fontWeight: '600', textDecoration: 'none' }}>
+                        Create one
+                    </Link>
                 </p>
             </div>
         </div>
