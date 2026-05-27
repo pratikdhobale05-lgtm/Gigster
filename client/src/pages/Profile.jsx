@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Star, User as UserIcon, Briefcase, ArrowLeft, MapPin, Calendar } from 'lucide-react';
+import { Star, User as UserIcon, Briefcase, ArrowLeft, Calendar } from 'lucide-react';
 import api from '../utils/api';
 
 const Profile = () => {

@@ -109,7 +109,7 @@ const Dashboard = () => {
                 display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
                 gap: '1rem', marginBottom: '2rem'
             }}>
-                {stats.map((stat, i) => (
+                {stats.map((stat) => (
                     <div key={stat.label} className="card" style={{
                         padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem'
                     }}>

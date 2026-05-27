@@ -24,7 +24,7 @@ function App() {
         if (isAuthenticated) {
             fetchMe();
         }
-    }, []);
+    }, [fetchMe, isAuthenticated]);
 
     return (
         <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import api from '../utils/api';
-import { Send, Paperclip } from 'lucide-react';
+import { Send } from 'lucide-react';
 
 const SOCKET_URL = 'http://localhost:5000';
 

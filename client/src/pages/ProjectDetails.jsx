@@ -28,39 +28,47 @@ const ProjectDetails = () => {
     const [hoveredRating, setHoveredRating] = useState(0);
     const [reviewComment, setReviewComment] = useState('');
     const [reviewSubmitted, setReviewSubmitted] = useState(false);
+    const [refreshKey, setRefreshKey] = useState(0);
 
-    useEffect(() => { fetchProjectData(); }, [id, user?.role]);
+    useEffect(() => {
+        let cancelled = false;
+        const fetchProjectData = async () => {
+            try {
+                setLoading(true);
+                const res = await api.get(`/projects/${id}`);
+                if (cancelled) return;
+                const p = res.data.data;
+                setProject(p);
+                if (user?.role === 'client' && p.status === 'open' && (p.clientId?._id === user._id || p.clientId === user._id)) {
+                    const pRes = await api.get(`/proposals?project=${id}`);
+                    if (!cancelled) setProposals(pRes.data.data || []);
+                }
+            } catch { if (!cancelled) setError('Could not load project.'); }
+            finally { if (!cancelled) setLoading(false); }
+        };
+        fetchProjectData();
+        return () => { cancelled = true; };
+    }, [id, user, refreshKey]);
 
-    const fetchProjectData = async () => {
-        try {
-            const res = await api.get(`/projects/${id}`);
-            const p = res.data.data;
-            setProject(p);
-            if (user?.role === 'client' && p.status === 'open' && (p.clientId?._id === user._id || p.clientId === user._id)) {
-                const pRes = await api.get(`/proposals?project=${id}`);
-                setProposals(pRes.data.data || []);
-            }
-        } catch { setError('Could not load project.'); }
-        finally { setLoading(false); }
-    };
+    const refetch = () => setRefreshKey(k => k + 1);
 
     const handleBidSubmit = async (e) => {
         e.preventDefault(); setBidStatus(null);
         try { await api.post('/proposals', { project: id, price: bidData.price, coverLetter: bidData.coverLetter }); setBidStatus('success'); setShowBidForm(false); }
         catch { setBidStatus('error'); }
     };
-    const handleAcceptProposal = async (pid) => { try { await api.put(`/proposals/${pid}/accept`); fetchProjectData(); } catch { alert('Failed'); } };
-    const handleFundProject = async () => { try { await api.post(`/escrow/milestones/${id}/fund`); fetchProjectData(); } catch (e) { alert(e.response?.data?.message || 'Failed'); } };
-    const handleSubmitWork = async () => { try { await api.patch(`/escrow/milestones/${id}/submit`); fetchProjectData(); } catch { alert('Failed'); } };
-    const handleApproveWork = async () => { try { await api.patch(`/escrow/milestones/${id}/approve`); fetchProjectData(); } catch { alert('Failed'); } };
+    const handleAcceptProposal = async (pid) => { try { await api.put(`/proposals/${pid}/accept`); refetch(); } catch { alert('Failed'); } };
+    const handleFundProject = async () => { try { await api.post(`/escrow/milestones/${id}/fund`); refetch(); } catch (e) { alert(e.response?.data?.message || 'Failed'); } };
+    const handleSubmitWork = async () => { try { await api.patch(`/escrow/milestones/${id}/submit`); refetch(); } catch { alert('Failed'); } };
+    const handleApproveWork = async () => { try { await api.patch(`/escrow/milestones/${id}/approve`); refetch(); } catch { alert('Failed'); } };
     const handleRaiseDispute = async () => {
         if (!confirm('Raise a dispute? Funds will be locked for admin review.')) return;
-        try { await api.post(`/escrow/milestones/${id}/dispute`); fetchProjectData(); } catch { alert('Failed'); }
+        try { await api.post(`/escrow/milestones/${id}/dispute`); refetch(); } catch { alert('Failed'); }
     };
     const handleSubmitReview = async (e) => {
         e.preventDefault(); if (!rating) return alert('Select a rating');
         try { await api.post('/reviews', { projectId: id, rating, comment: reviewComment }); setReviewSubmitted(true); }
-        catch (e) { alert(e.response?.data?.message || 'Failed'); }
+        catch (err) { alert(err.response?.data?.message || 'Failed'); }
     };
 
     if (loading) return <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div className="animate-pulse-glow" style={{ width: 48, height: 48, borderRadius: 'var(--radius-lg)', background: 'var(--gradient-primary)' }} /></div>;

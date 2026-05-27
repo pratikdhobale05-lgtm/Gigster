@@ -20,9 +20,9 @@ const runAutoApproval = async () => {
             milestone.status = 'approved';
             await milestone.save();
 
-            // Release the escrow
+            // Release the escrow tied to this specific milestone
             const escrow = await Escrow.findOne({
-                project: milestone.projectId,
+                milestoneId: milestone._id,
                 status: 'funded'
             });
             if (escrow) {

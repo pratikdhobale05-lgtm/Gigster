@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import api from '../utils/api';
 
-const useAuthStore = create((set, get) => ({
+const useAuthStore = create((set) => ({
     user: JSON.parse(localStorage.getItem('user')) || null,
     token: localStorage.getItem('token') || null,
     isAuthenticated: !!localStorage.getItem('token'),
@@ -28,8 +28,9 @@ const useAuthStore = create((set, get) => ({
             const userData = response.data.data.user;
             localStorage.setItem('user', JSON.stringify(userData));
             set({ user: userData, isAuthenticated: true });
-        } catch (err) {
+        } catch (error) {
             // Token is invalid — clear everything
+            console.error('Session rehydration failed:', error.message);
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             set({ user: null, token: null, isAuthenticated: false });

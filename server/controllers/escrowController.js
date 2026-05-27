@@ -80,25 +80,26 @@ exports.approveWork = async (req, res) => {
     try {
         const projectId = req.params.id;
 
-        // Find the escrow record tied to this project
-        const escrow = await Escrow.findOne({ project: projectId, status: 'funded' });
-        if (!escrow) return res.status(404).json({ message: 'No active funded escrow found for this project' });
-
-        // Update the Escrow to release the money
-        escrow.status = 'released';
-        await escrow.save();
-
-        // Update milestone status
+        // Update milestone status first
         const milestone = await Milestone.findOne({ projectId: projectId, status: 'submitted' });
-        if (milestone) {
-            milestone.status = 'approved';
-            await milestone.save();
+        if (!milestone) return res.status(404).json({ message: 'No submitted milestone found for this project' });
+
+        milestone.status = 'approved';
+        await milestone.save();
+
+        // Find and release the escrow record tied to this specific milestone
+        const escrow = await Escrow.findOne({ milestoneId: milestone._id, status: 'funded' });
+        if (escrow) {
+            escrow.status = 'released';
+            await escrow.save();
         }
 
         // Update the project to completed
         const project = await Project.findById(projectId);
-        project.status = 'completed';
-        await project.save();
+        if (project) {
+            project.status = 'completed';
+            await project.save();
+        }
 
         res.status(200).json({ success: true, message: 'Work approved and funds released!' });
     } catch (error) {
@@ -122,19 +123,22 @@ exports.raiseDispute = async (req, res) => {
             return res.status(403).json({ message: 'Only project participants can raise a dispute' });
         }
 
-        // Lock the escrow
-        const escrow = await Escrow.findOne({ project: projectId, status: 'funded' });
-        if (escrow) {
-            escrow.status = 'disputed';
-            await escrow.save();
-        }
-
         // Pause auto-approval on milestone
         const milestone = await Milestone.findOne({ projectId: projectId, status: { $in: ['submitted', 'funded'] } });
         if (milestone) {
             milestone.status = 'disputed';
             milestone.autoApprovalDeadline = null; // Pause the timer
             await milestone.save();
+        }
+
+        // Lock the escrow tied to this specific milestone
+        const escrow = await Escrow.findOne({
+            milestoneId: milestone ? milestone._id : undefined,
+            status: 'funded'
+        });
+        if (escrow) {
+            escrow.status = 'disputed';
+            await escrow.save();
         }
 
         // Update project status
