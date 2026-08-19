@@ -26,7 +26,7 @@ exports.uploadChatFile = async (req, res) => {
     }
 
     // Upload the file buffer to a Cloudinary folder named 'gigster_chats'
-    const result = await uploadToCloudinary(req.file.buffer, 'gigster_chats');
+    const result = await uploadToCloudinary(req.file.buffer, 'gigster_chats', req.file.originalname);
 
     // Return the secure URL to the frontend
     res.status(200).json({

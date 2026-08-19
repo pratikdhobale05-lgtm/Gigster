@@ -59,8 +59,8 @@ reviewSchema.statics.calcAverageRatings = async function (revieweeId) {
 };
 
 // Trigger rating recalculation after save
-reviewSchema.post('save', function () {
-    this.constructor.calcAverageRatings(this.reviewee);
+reviewSchema.post('save', async function () {
+    await this.constructor.calcAverageRatings(this.reviewee);
 });
 
 module.exports = mongoose.model('Review', reviewSchema);

@@ -11,11 +11,21 @@ router.use(auth.protect);
 // 1. Fetch chat history for a specific project
 router.get('/project/:projectId', messageController.getProjectMessages);
 
+// Custom wrapper for multer upload to handle busboy/upload errors cleanly without crashing
+const handleUpload = (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
+        if (err) {
+            console.error('File upload middleware error:', err.message);
+            return res.status(400).json({ status: 'fail', message: err.message || 'File upload error' });
+        }
+        next();
+    });
+};
+
 // 2. Upload a file to Cloudinary
-// 'upload.single("file")' tells multer to look for a single file attached to the field named "file"
 router.post(
     '/upload',
-    upload.single('file'),
+    handleUpload,
     messageController.uploadChatFile
 );
 

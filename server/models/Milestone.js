@@ -30,8 +30,18 @@ const milestoneSchema = new mongoose.Schema(
             ],
             default: 'pending',
         },
-        // Store the Stripe Payment Intent ID or Razorpay Order ID for verification
+        // Store the Stripe Payment Intent ID for verification
         paymentIntentId: {
+            type: String,
+            select: false,
+        },
+        // Store the Razorpay Order ID for payment verification
+        razorpayOrderId: {
+            type: String,
+            select: false,
+        },
+        // Store the Razorpay Payment ID after successful payment
+        razorpayPaymentId: {
             type: String,
             select: false,
         },

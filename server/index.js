@@ -63,6 +63,14 @@ app.use((err, req, res, next) => {
 // 8. Database Connection & Server Start
 const PORT = process.env.PORT || 5000;
 
+// Process level error handlers to prevent unhandled stream errors from crashing the server
+process.on('uncaughtException', (err) => {
+    console.error('⚠️ Uncaught Exception:', err.message);
+});
+process.on('unhandledRejection', (reason) => {
+    console.error('⚠️ Unhandled Rejection:', reason);
+});
+
 mongoose
     .connect(process.env.MONGO_URI)
     .then(() => {

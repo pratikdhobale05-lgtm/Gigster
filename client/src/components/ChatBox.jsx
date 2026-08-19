@@ -1,15 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import api from '../utils/api';
-import { Send } from 'lucide-react';
+import { Send, Paperclip, X, Loader } from 'lucide-react';
 
 const SOCKET_URL = 'http://localhost:5000';
 
 const ChatBox = ({ projectId, currentUser }) => {
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [uploadingFile, setUploadingFile] = useState(false);
     const socketRef = useRef();
     const messagesEndRef = useRef(null);
+    const fileInputRef = useRef(null);
 
     useEffect(() => {
         const fetchHistory = async () => {
@@ -38,16 +41,52 @@ const ChatBox = ({ projectId, currentUser }) => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
+    const handleFileSelect = (e) => {
+        if (e.target.files && e.target.files[0]) {
+            setSelectedFile(e.target.files[0]);
+        }
+    };
+
     const handleSendMessage = async (e) => {
         e.preventDefault();
-        if (!newMessage.trim()) return;
+        if (!newMessage.trim() && !selectedFile) return;
+
+        let fileUrl = null;
+        let fileType = null;
+
+        if (selectedFile) {
+            try {
+                setUploadingFile(true);
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+
+                const uploadRes = await api.post('/messages/upload', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+
+                fileUrl = uploadRes.data.data.fileUrl;
+                fileType = uploadRes.data.data.fileType;
+            } catch (err) {
+                console.error("File upload failed:", err);
+                alert("Failed to upload file attachment. Please try again.");
+                setUploadingFile(false);
+                return;
+            } finally {
+                setUploadingFile(false);
+            }
+        }
 
         socketRef.current.emit('sendMessage', {
             projectId,
             senderId: currentUser._id,
-            text: newMessage
+            text: newMessage.trim(),
+            fileUrl,
+            fileType,
         });
+
         setNewMessage('');
+        setSelectedFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
     const formatTime = (timestamp) => {
@@ -57,7 +96,7 @@ const ChatBox = ({ projectId, currentUser }) => {
 
     return (
         <div className="card" style={{
-            display: 'flex', flexDirection: 'column', height: '500px', overflow: 'hidden', marginTop: '1.5rem'
+            display: 'flex', flexDirection: 'column', height: '520px', overflow: 'hidden', marginTop: '1.5rem'
         }}>
             {/* Chat Header */}
             <div style={{
@@ -68,7 +107,7 @@ const ChatBox = ({ projectId, currentUser }) => {
                     Project Workspace Chat
                 </h3>
                 <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '0.125rem' }}>
-                    Messages are live and end-to-end encrypted.
+                    Real-time collaboration & secure file sharing.
                 </p>
             </div>
 
@@ -80,21 +119,21 @@ const ChatBox = ({ projectId, currentUser }) => {
             }}>
                 {messages.length === 0 ? (
                     <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', marginTop: '4rem', fontSize: '0.875rem' }}>
-                        No messages yet. Say hello! 👋
+                        No messages yet. Say hello or share project files! 👋
                     </p>
                 ) : (
                     messages.map((msg, index) => {
                         const senderId = msg.senderId?._id || msg.senderId;
                         const isMe = senderId === currentUser._id;
-                        const senderName = msg.senderId?.name || 'Unknown';
+                        const senderName = msg.senderId?.name || 'User';
 
                         return (
                             <div key={msg._id || index} style={{
                                 display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start'
                             }}>
                                 <div style={{
-                                    maxWidth: '70%', borderRadius: 'var(--radius-lg)',
-                                    padding: '0.625rem 1rem',
+                                    maxWidth: '75%', borderRadius: 'var(--radius-lg)',
+                                    padding: '0.75rem 1rem',
                                     background: isMe
                                         ? 'linear-gradient(135deg, #6366f1, #4f46e5)'
                                         : 'var(--color-bg-card)',
@@ -109,22 +148,29 @@ const ChatBox = ({ projectId, currentUser }) => {
                                     )}
                                     {msg.fileUrl && (
                                         <div style={{ marginBottom: '0.5rem' }}>
-                                            {msg.fileType === 'image' ? (
-                                                <img src={msg.fileUrl} alt="attachment" style={{ maxWidth: '100%', borderRadius: 'var(--radius-sm)' }} />
+                                            {msg.fileType === 'image' || (typeof msg.fileUrl === 'string' && msg.fileUrl.startsWith('data:image/')) ? (
+                                                <img src={msg.fileUrl} alt="attachment" style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: 'var(--radius-sm)', objectFit: 'cover' }} />
                                             ) : (
                                                 <a href={msg.fileUrl} target="_blank" rel="noopener noreferrer"
-                                                    style={{ color: 'var(--color-accent-light)', fontSize: '0.8125rem', textDecoration: 'underline' }}>
-                                                    📎 View Attachment
+                                                    style={{
+                                                        display: 'inline-flex', alignItems: 'center', gap: '6px',
+                                                        color: isMe ? '#e0e7ff' : 'var(--color-accent-light)',
+                                                        fontSize: '0.8125rem', textDecoration: 'underline',
+                                                        wordBreak: 'break-all'
+                                                    }}>
+                                                    <Paperclip style={{ width: '14px', height: '14px' }} /> View Attachment
                                                 </a>
                                             )}
                                         </div>
                                     )}
-                                    <p style={{ fontSize: '0.875rem', lineHeight: '1.5', color: isMe ? 'white' : 'var(--color-text-primary)' }}>
-                                        {msg.text}
-                                    </p>
+                                    {msg.text && (
+                                        <p style={{ fontSize: '0.875rem', lineHeight: '1.5', color: isMe ? 'white' : 'var(--color-text-primary)', margin: 0 }}>
+                                            {msg.text}
+                                        </p>
+                                    )}
                                     <p style={{
-                                        fontSize: '0.625rem', marginTop: '0.25rem',
-                                        color: isMe ? 'rgba(255,255,255,0.5)' : 'var(--color-text-muted)', textAlign: 'right'
+                                        fontSize: '0.625rem', marginTop: '0.375rem',
+                                        color: isMe ? 'rgba(255,255,255,0.6)' : 'var(--color-text-muted)', textAlign: 'right', margin: 0
                                     }}>
                                         {formatTime(msg.createdAt)}
                                     </p>
@@ -136,27 +182,75 @@ const ChatBox = ({ projectId, currentUser }) => {
                 <div ref={messagesEndRef} />
             </div>
 
+            {/* Selected File Badge */}
+            {selectedFile && (
+                <div style={{
+                    padding: '0.5rem 1.5rem', background: 'rgba(99,102,241,0.1)',
+                    borderTop: '1px solid rgba(99,102,241,0.2)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    fontSize: '0.75rem', color: 'var(--color-primary-light)'
+                }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <Paperclip style={{ width: '14px', height: '14px' }} />
+                        Attached: <strong>{selectedFile.name}</strong> ({(selectedFile.size / 1024).toFixed(1)} KB)
+                    </span>
+                    <button type="button" onClick={() => { setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                        style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex' }}>
+                        <X style={{ width: '14px', height: '14px' }} />
+                    </button>
+                </div>
+            )}
+
             {/* Input Area */}
             <form onSubmit={handleSendMessage} style={{
-                padding: '1rem 1.5rem', borderTop: '1px solid var(--color-border)',
+                padding: '0.875rem 1.5rem', borderTop: '1px solid var(--color-border)',
                 display: 'flex', gap: '0.5rem', alignItems: 'center',
                 background: 'var(--color-bg-card)'
             }}>
                 <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileSelect}
+                    style={{ display: 'none' }}
+                />
+
+                <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Attach a file"
+                    disabled={uploadingFile}
+                    style={{
+                        width: '38px', height: '38px', borderRadius: '50%', border: '1px solid var(--color-border)',
+                        background: selectedFile ? 'rgba(99,102,241,0.2)' : 'var(--color-bg-elevated)',
+                        color: selectedFile ? 'var(--color-primary-light)' : 'var(--color-text-muted)',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all 0.2s', flexShrink: 0
+                    }}
+                >
+                    <Paperclip style={{ width: '16px', height: '16px' }} />
+                </button>
+
+                <input
                     type="text" value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Type your message..."
+                    disabled={uploadingFile}
                     className="input-dark"
                     style={{ flex: 1, borderRadius: 'var(--radius-full)', padding: '0.625rem 1rem' }}
                 />
-                <button type="submit" disabled={!newMessage.trim()} style={{
+
+                <button type="submit" disabled={uploadingFile || (!newMessage.trim() && !selectedFile)} style={{
                     width: '40px', height: '40px', borderRadius: '50%', border: 'none',
-                    background: newMessage.trim() ? 'var(--gradient-primary)' : 'var(--color-bg-elevated)',
-                    color: 'white', cursor: newMessage.trim() ? 'pointer' : 'default',
+                    background: (newMessage.trim() || selectedFile) ? 'var(--gradient-primary)' : 'var(--color-bg-elevated)',
+                    color: 'white', cursor: (newMessage.trim() || selectedFile) ? 'pointer' : 'default',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     transition: 'all 0.2s', flexShrink: 0
                 }}>
-                    <Send style={{ width: '16px', height: '16px' }} />
+                    {uploadingFile ? (
+                        <Loader style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} />
+                    ) : (
+                        <Send style={{ width: '16px', height: '16px' }} />
+                    )}
                 </button>
             </form>
         </div>

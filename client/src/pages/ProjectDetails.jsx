@@ -4,6 +4,7 @@ import { DollarSign, Tag, ArrowLeft, CheckCircle, ShieldCheck, Star, AlertTriang
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
 import ChatBox from '../components/ChatBox';
+import PaymentQRModal from '../components/PaymentQRModal';
 
 const statusMap = {
     open: { label: 'Open', class: 'badge-open' },
@@ -52,13 +53,60 @@ const ProjectDetails = () => {
 
     const refetch = () => setRefreshKey(k => k + 1);
 
+    const [fundingInProgress, setFundingInProgress] = useState(false);
+    const [qrModal, setQrModal] = useState({ open: false, orderId: null, amount: null, upiString: null, simulated: false });
+
     const handleBidSubmit = async (e) => {
         e.preventDefault(); setBidStatus(null);
         try { await api.post('/proposals', { project: id, price: bidData.price, coverLetter: bidData.coverLetter }); setBidStatus('success'); setShowBidForm(false); }
         catch { setBidStatus('error'); }
     };
     const handleAcceptProposal = async (pid) => { try { await api.put(`/proposals/${pid}/accept`); refetch(); } catch { alert('Failed'); } };
-    const handleFundProject = async () => { try { await api.post(`/escrow/milestones/${id}/fund`); refetch(); } catch (e) { alert(e.response?.data?.message || 'Failed'); } };
+
+    // ── Razorpay / QR Payment Flow ──
+    const handleFundProject = async () => {
+        try {
+            setFundingInProgress(true);
+
+            // Step 1: Create a Razorpay order on the backend
+            const { data } = await api.post(`/escrow/milestones/${id}/create-order`);
+            const orderData = data.data;
+
+            // Step 2: Build UPI deep-link string for QR code
+            const amountInRupees = (orderData.amount / 100).toFixed(2);
+            const upiString = `upi://pay?pa=gigster@razorpay&pn=Gigster+Escrow&am=${amountInRupees}&cu=INR&tn=EscrowPayment&tr=${orderData.orderId}`;
+
+            // Step 3: Show the QR modal (works for both simulated & real Razorpay)
+            setFundingInProgress(false);
+            setQrModal({
+                open: true,
+                orderId: orderData.orderId,
+                amount: orderData.amount,
+                upiString,
+                simulated: orderData.simulated,
+            });
+        } catch (e) {
+            setFundingInProgress(false);
+            alert(e.response?.data?.message || 'Failed to initiate payment');
+        }
+    };
+
+    // Called by PaymentQRModal after user confirms / simulates payment
+    const handleQRPaymentSuccess = async (paymentData) => {
+        try {
+            await api.post(`/escrow/milestones/${id}/verify-payment`, {
+                razorpay_order_id: paymentData.razorpay_order_id,
+                razorpay_payment_id: paymentData.razorpay_payment_id,
+                razorpay_signature: paymentData.razorpay_signature,
+            });
+            setQrModal({ open: false, orderId: null, amount: null, upiString: null, simulated: false });
+            refetch();
+        } catch (err) {
+            setQrModal({ open: false, orderId: null, amount: null, upiString: null, simulated: false });
+            alert(err.response?.data?.message || 'Payment verification failed');
+        }
+    };
+
     const handleSubmitWork = async () => { try { await api.patch(`/escrow/milestones/${id}/submit`); refetch(); } catch { alert('Failed'); } };
     const handleApproveWork = async () => { try { await api.patch(`/escrow/milestones/${id}/approve`); refetch(); } catch { alert('Failed'); } };
     const handleRaiseDispute = async () => {
@@ -81,6 +129,7 @@ const ProjectDetails = () => {
     const status = statusMap[project.status] || statusMap.open;
 
     return (
+        <>
         <div style={{ maxWidth: 900, margin: '0 auto', padding: '2rem 1.5rem 4rem' }}>
             <Link to="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--color-text-muted)', textDecoration: 'none', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
                 <ArrowLeft style={{ width: 16, height: 16 }} /> Back to Dashboard
@@ -109,7 +158,7 @@ const ProjectDetails = () => {
                         <ShieldCheck style={{ width: 48, height: 48, color: '#6366f1', marginBottom: 12 }} />
                         <h3 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 8 }}>Freelancer Hired</h3>
                         <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', maxWidth: 400, marginBottom: 16 }}>Fund the project to lock money in Escrow.</p>
-                        <button onClick={handleFundProject} className="btn-primary"><ShieldCheck style={{ width: 16, height: 16 }} /> Fund Project</button>
+                        <button onClick={handleFundProject} className="btn-primary" disabled={fundingInProgress}><ShieldCheck style={{ width: 16, height: 16 }} /> {fundingInProgress ? 'Processing...' : 'Fund Project'}</button>
                     </>)}
                     {project.status === 'in_progress' && isHired && <p style={{ color: 'var(--color-text-muted)' }}>⏳ Waiting for client to fund...</p>}
 
@@ -221,6 +270,19 @@ const ProjectDetails = () => {
                 </div>
             )}
         </div>
+
+        {/* QR Payment Modal */}
+        <PaymentQRModal
+            isOpen={qrModal.open}
+            onClose={() => setQrModal({ open: false, orderId: null, amount: null, upiString: null, simulated: false })}
+            onSuccess={handleQRPaymentSuccess}
+            amount={qrModal.amount}
+            orderId={qrModal.orderId}
+            upiString={qrModal.upiString}
+            simulated={qrModal.simulated}
+            projectName={project?.title}
+        />
+        </>
     );
 };
 
