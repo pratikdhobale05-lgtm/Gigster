@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
-import { Zap, LogOut, User, LayoutDashboard, Menu, X } from 'lucide-react';
+import { Zap, LogOut, User, LayoutDashboard, Menu, X, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 
 const Navbar = () => {
@@ -19,7 +19,7 @@ const Navbar = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '64px' }}>
 
                     {/* Logo */}
-                    <Link to={isAuthenticated ? "/dashboard" : "/login"} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}>
+                    <Link to={isAuthenticated ? (user?.role === 'admin' ? "/admin" : "/dashboard") : "/login"} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}>
                         <div style={{
                             width: '36px', height: '36px', borderRadius: 'var(--radius-md)',
                             background: 'var(--gradient-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center'
@@ -35,6 +35,17 @@ const Navbar = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }} className="hidden md:flex">
                         {isAuthenticated ? (
                             <>
+                                {user?.role === 'admin' && (
+                                    <Link to="/admin" style={{
+                                        display: 'flex', alignItems: 'center', gap: '0.375rem',
+                                        color: '#f43f5e', textDecoration: 'none', fontSize: '0.875rem',
+                                        fontWeight: '600', transition: 'color 0.2s', padding: '0.5rem 0.75rem',
+                                        borderRadius: 'var(--radius-md)', background: 'rgba(244,63,94,0.1)'
+                                    }}>
+                                        <ShieldCheck style={{ width: '16px', height: '16px' }} />
+                                        Admin Panel
+                                    </Link>
+                                )}
                                 <Link to="/dashboard" style={{
                                     display: 'flex', alignItems: 'center', gap: '0.375rem',
                                     color: 'var(--color-text-secondary)', textDecoration: 'none', fontSize: '0.875rem',
@@ -121,6 +132,12 @@ const Navbar = () => {
                     }}>
                         {isAuthenticated ? (
                             <>
+                                {user?.role === 'admin' && (
+                                    <Link to="/admin" onClick={() => setMobileOpen(false)}
+                                        style={{ color: '#f43f5e', textDecoration: 'none', padding: '0.5rem 0', fontSize: '0.875rem', fontWeight: '600' }}>
+                                        Admin Panel
+                                    </Link>
+                                )}
                                 <Link to="/dashboard" onClick={() => setMobileOpen(false)}
                                     style={{ color: 'var(--color-text-secondary)', textDecoration: 'none', padding: '0.5rem 0', fontSize: '0.875rem' }}>
                                     Dashboard

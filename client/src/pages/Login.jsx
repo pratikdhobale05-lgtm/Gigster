@@ -23,8 +23,9 @@ const Login = () => {
 
         try {
             const response = await api.post('/auth/login', formData);
-            login(response.data.data.user, response.data.token);
-            navigate('/dashboard');
+            const user = response.data.data.user;
+            login(user, response.data.token);
+            navigate(user.role === 'admin' ? '/admin' : '/dashboard');
         } catch (err) {
             setError(err.response?.data?.message || 'Invalid email or password');
         } finally {

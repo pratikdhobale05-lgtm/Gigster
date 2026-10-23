@@ -11,11 +11,19 @@ const signToken = (id, role) => {
 // --- REGISTER A NEW USER ---
 exports.register = async (req, res) => {
     try {
+        const role = req.body.role || 'client';
+        if (!['client', 'freelancer'].includes(role)) {
+            return res.status(400).json({
+                status: 'fail',
+                message: "Role must be 'client' or 'freelancer'",
+            });
+        }
+
         const newUser = await User.create({
             name: req.body.name,
             email: req.body.email,
             password: req.body.password,
-            role: req.body.role, // 'client' or 'freelancer'
+            role,
         });
 
         // Remove password from the response output for security

@@ -18,7 +18,9 @@ const chatSocket = require('./sockets/chat');
 const proposalRoutes = require('./routes/proposalRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const userRoutes = require('./routes/userRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const { startCronJobs } = require('./utils/cronJobs');
+const ensureAdminAccount = require('./utils/adminSetup');
 
 // 3. Initialize Express
 const app = express();
@@ -50,6 +52,7 @@ app.use('/api/escrow', escrowRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 7. Basic Global Error Handler
 app.use((err, req, res, next) => {
@@ -73,8 +76,10 @@ process.on('unhandledRejection', (reason) => {
 
 mongoose
     .connect(process.env.MONGO_URI)
-    .then(() => {
+    .then(async () => {
         console.log('✅ Connected to MongoDB successfully');
+
+        await ensureAdminAccount();
 
         // Start the auto-approval cron jobs
         startCronJobs();
@@ -84,5 +89,5 @@ mongoose
         });
     })
     .catch((err) => {
-        console.error('❌ MongoDB connection error:', err.message);
+        console.error('❌ Server initialization error:', err.message);
     });

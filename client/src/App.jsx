@@ -7,12 +7,21 @@ import Dashboard from './pages/Dashboard';
 import CreateProject from './pages/CreateProject';
 import Profile from './pages/Profile';
 import ProjectDetails from './pages/ProjectDetails';
+import AdminDashboard from './pages/AdminDashboard';
 import useAuthStore from './store/authStore';
 
-// Protected Route Wrapper
+// Protected Route Wrapper — requires login
 const ProtectedRoute = ({ children }) => {
     const { isAuthenticated } = useAuthStore();
     if (!isAuthenticated) return <Navigate to="/login" replace />;
+    return children;
+};
+
+// Admin Route Wrapper — requires login + admin role
+const AdminRoute = ({ children }) => {
+    const { isAuthenticated, user } = useAuthStore();
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
+    if (user?.role !== 'admin') return <Navigate to="/dashboard" replace />;
     return children;
 };
 
@@ -38,6 +47,7 @@ function App() {
                     <Route path="/create-project" element={<ProtectedRoute><CreateProject /></ProtectedRoute>} />
                     <Route path="/project/:id" element={<ProtectedRoute><ProjectDetails /></ProtectedRoute>} />
                     <Route path="/profile/:id" element={<Profile />} />
+                    <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
                 </Routes>
             </main>
         </div>
